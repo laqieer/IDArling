@@ -15,6 +15,7 @@ import os
 import socket
 import ssl
 import threading
+import bz2
 
 from .commands import (
     CreateGroup,
@@ -256,8 +257,9 @@ class ServerClient(ClientSocket):
         file_path = self.parent().server_file(file_name)
 
         # Write the file received to disk
+        decompressed_content = bz2.decompress(query.content)
         with open(file_path, "wb") as output_file:
-            output_file.write(query.content)
+            output_file.write(decompressed_content)
         self._logger.info("Saved file %s" % file_name)
         self.send_packet(UpdateFile.Reply(query))
 
@@ -271,7 +273,8 @@ class ServerClient(ClientSocket):
         # Read file from disk and sent it
         reply = DownloadFile.Reply(query)
         with open(file_path, "rb") as input_file:
-            reply.content = input_file.read()
+            uncompressed_content = input_file.read()
+        reply.content = bz2.compress(uncompressed_content)
         self._logger.info("Loaded file %s" % file_name)
         self.send_packet(reply)
 

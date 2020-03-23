@@ -15,6 +15,7 @@ from functools import partial
 import os
 import shutil
 import tempfile
+import bz2
 
 import ida_auto
 import ida_idaapi
@@ -211,8 +212,9 @@ class OpenActionHandler(ActionHandler):
         file_path = self._plugin.user_resource("files", file_name)
 
         # Write the file to disk
+        decompressed_content = bz2.decompress(reply.content)
         with open(file_path, "wb") as output_file:
-            output_file.write(reply.content)
+            output_file.write(decompressed_content)
         self._plugin.logger.info("Saved file %s" % file_name)
 
         # Save the old database
@@ -302,7 +304,8 @@ class SaveActionHandler(ActionHandler):
         ida_loader.save_database(input_path, 0)
 
         with open(input_path, "rb") as input_file:
-            packet.content = input_file.read()
+            uncompressed_content = input_file.read()
+        packet.content = bz2.compress(uncompressed_content)
 
         # Create the upload progress dialog
         text = "Uploading database to server, please wait..."

@@ -236,7 +236,7 @@ class ClientSocket(QObject):
             QCoreApplication.instance().postEvent(self, PacketEvent())
 
     def _notify_write(self):
-        """Callback called when some data is ready to written on the socket."""
+        """Callback called when some data is ready to be written on the socket."""
         if not self._check_socket():
             return
 

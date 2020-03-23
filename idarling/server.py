@@ -24,7 +24,7 @@ from .shared.utils import start_logging
 
 class DedicatedServer(Server):
     """
-    This is the dedicated server. It can be invoked from the command line. It
+    This is the dedicated/standalone server. It can be invoked from the command line. It
     requires only PyQt5 and should be invoked from Python 3. The dedicated
     server should be used when the integrated doesn't fulfil the user's needs.
     """
