@@ -1038,19 +1038,21 @@ class UserLvarSettingsEvent(HexRaysEvent):
     def __call__(self):
         lvinf = ida_hexrays.lvar_uservec_t()
         lvinf.lvvec = ida_hexrays.lvar_saved_infos_t()
-        for lv in self.lvar_settings["lvvec"]:
-            lvinf.lvvec.push_back(
-                UserLvarSettingsEvent._get_lvar_saved_info(lv)
-            )
+        if "lvvec" in self.lvar_settings:
+            for lv in self.lvar_settings["lvvec"]:
+                lvinf.lvvec.push_back(
+                    UserLvarSettingsEvent._get_lvar_saved_info(lv)
+                )
         lvinf.sizes = ida_pro.intvec_t()
         if "sizes" in self.lvar_settings:
             for i in self.lvar_settings["sizes"]:
                 lvinf.sizes.push_back(i)
         lvinf.lmaps = ida_hexrays.lvar_mapping_t()
-        for key, val in self.lvar_settings["lmaps"]:
-            key = UserLvarSettingsEvent._get_lvar_locator(key)
-            val = UserLvarSettingsEvent._get_lvar_locator(val)
-            ida_hexrays.lvar_mapping_insert(lvinf.lmaps, key, val)
+        if "lmaps" in self.lvar_settings:
+            for key, val in self.lvar_settings["lmaps"]:
+                key = UserLvarSettingsEvent._get_lvar_locator(key)
+                val = UserLvarSettingsEvent._get_lvar_locator(val)
+                ida_hexrays.lvar_mapping_insert(lvinf.lmaps, key, val)
         lvinf.stkoff_delta = self.lvar_settings["stkoff_delta"]
         lvinf.ulv_flags = self.lvar_settings["ulv_flags"]
         ida_hexrays.save_user_lvar_settings(self.ea, lvinf)
