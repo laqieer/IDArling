@@ -45,7 +45,10 @@ class ClientsDiscovery(QObject):
     def start(self, host, port, ssl):
         """Start the discovery process and broadcast the given information."""
         self._logger.debug("Starting clients discovery")
-        self._info = "%s %d %s" % (host, port, ssl)
+        ssl_used = False
+        if ssl is not None:
+            ssl_used = True
+        self._info = "%s %d %s" % (host, port, str(ssl_used))
         # Create a datagram socket capable of broadcasting
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
