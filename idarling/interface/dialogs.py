@@ -14,6 +14,7 @@ import datetime
 from functools import partial
 import logging, time
 import binascii
+import platform
 
 import ida_loader
 import ida_nalt
@@ -281,6 +282,18 @@ class OpenDialog(QDialog):
         self._accept_button.setEnabled(True)
 
     def _database_double_clicked(self):
+        project_type = self._projects_table.selectedItems()[0].data(Qt.UserRole).type
+        # For now we are only detecting some bad matching between IDA architecture
+        # and the disassembled binary's architecture but we would need to 
+        # actually save a project architecture (32-bit or 64-bit) to support all
+        # cases
+        # E.g. below we support "Portable executable for 80386 (PE)" vs 
+        # "Portable executable for AMD64 (PE)"
+        if (platform.architecture()[0] == "64bit" and "80386" in project_type) \
+         or (platform.architecture()[0] == "32bit" and "AMD64" in project_type):
+            QMessageBox.about(self, "IDArling Error", "Wrong architecture!\n"
+                    "You must use the right version of IDA/IDA64,")
+            return
         self.accept()
 
     def _rename_project_button_clicked(self, _):
@@ -457,7 +470,7 @@ class SaveDialog(OpenDialog):
         hash = ida_nalt.retrieve_input_file_md5()
         # Remove the trailing null byte, if exists
         if hash.endswith(b'\x00'):
-          hash = hash[0:-1]
+            hash = hash[0:-1]
         # This decode is safe, because we have an hash in hex format
         hash = binascii.hexlify(hash).decode('utf-8')
         file = ida_nalt.get_root_filename()

@@ -197,6 +197,9 @@ We are tracking in 2 categories the issues on our github repository:
   It is not the case but if it were, only bookmarks would be missing and all the
   other contents from the IDBs would still be sane.
 
+Note that some of the issues have been marked as "won't fix" and closed as atm
+we don't think they are worth fixing but feel free to add comments if you disagree.
+
 # Thanks
 
 This project is inspired by [Sol[IDA]rity](https://solidarity.re/). It started
