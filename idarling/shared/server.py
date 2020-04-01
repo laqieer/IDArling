@@ -110,7 +110,6 @@ class ServerClient(ClientSocket):
                 return "(%s) %s" % (prefix, msg), kwargs
 
         self._logger = CustomAdapter(self._logger, {})
-        self._logger.info("Connected")
 
     def disconnect(self, err=None, notify=True):
         # Notify other users that we disconnected
@@ -118,7 +117,6 @@ class ServerClient(ClientSocket):
         if self._group and self._project and self._database and notify:
             self.parent().forward_users(self, LeaveSession(self.name, False))
         ClientSocket.disconnect(self, err)
-        # already printing a "Disconnected" message in ClientSocket.disconnect()
 
     def recv_packet(self, packet):
         if isinstance(packet, Command):
