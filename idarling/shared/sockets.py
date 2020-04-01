@@ -96,7 +96,7 @@ class ClientSocket(QObject):
                 self._logger.error("Connection refused")
             else:
                 self._logger.exception(err)
-        self._logger.debug("Disconnected")
+        self._logger.info("Disconnected")
         self._read_notifier.setEnabled(False)
         self._write_notifier.setEnabled(False)
         try:
