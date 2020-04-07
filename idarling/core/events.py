@@ -11,6 +11,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 import ctypes
+import pickle
 import sys
 
 import ida_bytes
@@ -31,6 +32,7 @@ import ida_ua
 import ida_idc
 import idc
 
+from ..shared.local_types import GetTypeString
 from ..shared.packets import DefaultEvent
 
 if sys.version_info > (3,):
@@ -288,7 +290,7 @@ class TiChangedEvent(Event):
         if len(py_type) >= 2:
             ida_typeinf.apply_type(
                 None,
-                py_type[0],
+                GetTypeString(pickle.loads(py_type[0])),
                 py_type[1],
                 self.ea,
                 ida_typeinf.TINFO_DEFINITE,
@@ -1067,11 +1069,11 @@ class UserLvarSettingsEvent(HexRaysEvent):
 
     @staticmethod
     def _get_tinfo(dct):
-        type, fields, fldcmts = dct
-        type = Event.encode_bytes(type)
+        type, fields, fldcmts, parsed_list = dct
+        # type = Event.encode_bytes(type)
         fields = Event.encode_bytes(fields)
         fldcmts = Event.encode_bytes(fldcmts)
-
+        type = GetTypeString(pickle.loads(Event.encode_bytes(parsed_list)))
         type_ = ida_typeinf.tinfo_t()
         if type is not None:
             type_.deserialize(None, type, fields, fldcmts)

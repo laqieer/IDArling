@@ -11,6 +11,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 # import ctypes
+import pickle
 
 import ida_auto
 import ida_bytes
@@ -28,6 +29,7 @@ import ida_typeinf
 
 from . import events as evt  # noqa: I100,I202
 from .events import Event  # noqa: I201
+from ..shared.local_types import ParseTypeString
 
 
 class Hooks(object):
@@ -116,7 +118,7 @@ class IDBHooks(Hooks, ida_idp.IDB_Hooks):
 
     def ti_changed(self, ea, type, fname):
         type = ida_typeinf.idc_get_type_raw(ea)
-        self._send_packet(evt.TiChangedEvent(ea, type))
+        self._send_packet(evt.TiChangedEvent(ea, (pickle.dumps(ParseTypeString(type[0])), type[1])))
         return 0
 
     def op_ti_changed(self, ea, n, type, fnames):
@@ -699,10 +701,11 @@ class HexRaysHooks(Hooks):
             return None, None, None
 
         type, fields, fldcmts = type.serialize()
-        type = Event.decode_bytes(type)
         fields = Event.decode_bytes(fields)
         fldcmts = Event.decode_bytes(fldcmts)
-        return type, fields, fldcmts
+        parsed_list = Event.decode_bytes(pickle.dumps(ParseTypeString(type)))
+        type = Event.decode_bytes(type)
+        return type, fields, fldcmts, parsed_list
 
     @staticmethod
     def _get_lvar_locator(ll):
