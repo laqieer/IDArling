@@ -30,6 +30,7 @@ import ida_struct
 import ida_typeinf
 import ida_ua
 import ida_idc
+import ida_offset
 import idc
 
 from ..shared.local_types import GetTypeString
@@ -394,7 +395,7 @@ class OpTypeChangedEvent(Event):
         if self.op == "oct":
             ida_bytes.op_oct(self.ea, self.n)
         if self.op == "offset":
-            ida_idc.op_plain_offset(self.ea, self.n, 0)
+            ida_offset.op_plain_offset(self.ea, self.n, 0)
         if self.op == "enum":
             id = ida_enum.get_enum(self.extra["ename"])
             ida_bytes.op_enum(self.ea, self.n, id, self.extra["serial"])
@@ -1039,19 +1040,21 @@ class UserLvarSettingsEvent(HexRaysEvent):
     def __call__(self):
         lvinf = ida_hexrays.lvar_uservec_t()
         lvinf.lvvec = ida_hexrays.lvar_saved_infos_t()
-        for lv in self.lvar_settings["lvvec"]:
-            lvinf.lvvec.push_back(
-                UserLvarSettingsEvent._get_lvar_saved_info(lv)
-            )
+        if "lvvec" in self.lvar_settings:
+            for lv in self.lvar_settings["lvvec"]:
+                lvinf.lvvec.push_back(
+                    UserLvarSettingsEvent._get_lvar_saved_info(lv)
+                )
         lvinf.sizes = ida_pro.intvec_t()
         if "sizes" in self.lvar_settings:
             for i in self.lvar_settings["sizes"]:
                 lvinf.sizes.push_back(i)
         lvinf.lmaps = ida_hexrays.lvar_mapping_t()
-        for key, val in self.lvar_settings["lmaps"]:
-            key = UserLvarSettingsEvent._get_lvar_locator(key)
-            val = UserLvarSettingsEvent._get_lvar_locator(val)
-            ida_hexrays.lvar_mapping_insert(lvinf.lmaps, key, val)
+        if "lmaps" in self.lvar_settings:
+            for key, val in self.lvar_settings["lmaps"]:
+                key = UserLvarSettingsEvent._get_lvar_locator(key)
+                val = UserLvarSettingsEvent._get_lvar_locator(val)
+                ida_hexrays.lvar_mapping_insert(lvinf.lmaps, key, val)
         lvinf.stkoff_delta = self.lvar_settings["stkoff_delta"]
         lvinf.ulv_flags = self.lvar_settings["ulv_flags"]
         ida_hexrays.save_user_lvar_settings(self.ea, lvinf)

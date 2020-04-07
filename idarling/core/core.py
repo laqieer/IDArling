@@ -67,6 +67,7 @@ class Core(Module):
         self._database = None
         self._tick = -1
         self._users = {}
+        self._session_joined = False
 
         self._idb_hooks = None
         self._idp_hooks = None
@@ -196,6 +197,10 @@ class Core(Module):
 
         class ViewHooksCore(ida_kernwin.View_Hooks):
             def view_loc_changed(self, view, now, was):
+                # Even if it is a core hook, there is no point sending an
+                # UpdateLocation if we are not in a valid session
+                if not core._session_joined:
+                    return
                 #core._plugin.logger.trace("View loc changed hook")
                 if now.plce.toea() != was.plce.toea():
                     name = core._plugin.config["user"]["name"]
@@ -281,8 +286,11 @@ class Core(Module):
 
     def join_session(self):
         """Join the collaborative session."""
-        self._plugin.logger.debug("Joining session")
         if self._group and self._project and self._database:
+            if self._session_joined:
+                self._plugin.logger.debug("Joining a new session")
+            else:
+                self._plugin.logger.debug("Joining session")
 
             def databases_listed(reply):
                 if any(d.name == self._database for d in reply.databases):
@@ -305,6 +313,7 @@ class Core(Module):
                         ea,
                     )
                 )
+                self._session_joined = True
                 self.hook_all()
                 self._users.clear()
 
@@ -314,12 +323,20 @@ class Core(Module):
             if d:
                 d.add_callback(databases_listed)
                 d.add_errback(self._plugin.logger.exception)
+        else:
+            self._plugin.logger.debug("Not joining any session yet")
+            self._session_joined = False
 
     def leave_session(self):
         """Leave the collaborative session."""
+        if not self._session_joined:
+            self._plugin.logger.debug("Already left session")
+            return
+
         self._plugin.logger.debug("Leaving session")
         if self._group and self._project and self._database:
             name = self._plugin.config["user"]["name"]
             self._plugin.network.send_packet(LeaveSession(name))
             self._users.clear()
             self.unhook_all()
+        self._session_joined = False

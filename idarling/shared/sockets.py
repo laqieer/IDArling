@@ -96,7 +96,7 @@ class ClientSocket(QObject):
                 self._logger.error("Connection refused")
             else:
                 self._logger.exception(err)
-        self._logger.debug("Disconnected")
+        self._logger.info("Disconnected")
         self._read_notifier.setEnabled(False)
         self._write_notifier.setEnabled(False)
         try:
@@ -236,7 +236,7 @@ class ClientSocket(QObject):
             QCoreApplication.instance().postEvent(self, PacketEvent())
 
     def _notify_write(self):
-        """Callback called when some data is ready to written on the socket."""
+        """Callback called when some data is ready to be written on the socket."""
         if not self._check_socket():
             return
 

@@ -11,7 +11,6 @@
     - [Implementation details](#implementation-details)
     - [Known changes already synced by IDArling](#known-changes-already-synced-by-idarling)
     - [Known changes not currently synced by IDArling](#known-changes-not-currently-synced-by-idarling)
-    - [Known issues due to IDArling use](#known-issues-due-to-idarling-use)
 - [Thanks](#thanks)
 - [Authors](#authors)
 -------------------------------------------------------------------------------
@@ -175,6 +174,8 @@ base IDB.
 * Syncs integer type (hex / integer / binary / enum) changes in both IDA and Hex-Rays
 * Manually creating an enum and pasting in the code will actually sync across
  IDBs
+ 
+Note: the above list is not up-to-date and needs to be updated.
 
 ### Known changes not currently synced by IDArling
 
@@ -182,29 +183,22 @@ These changes typically require you to create a new database (i.e. snapshot, as
 explained above) so you don't lose your changes. It is typically the case for
 actions that do not generate events that IDArling can catch and propagate.
 
-* Importing a new header file ("File > Load file > Parse C header file"): If 
-we know we are going to have to import C headers, we want to do it on one 
-system and then save the snapshot, because we're unable to sync 
-those.
-* Upgrading IDA version
-* adding a new type: If you add a new type that is a pointer or another type 
-that doesn't sync to the struct or enum tabs, you MUST save a new database
-* Converting raw data to code
-* Sync notepad (github #79)
-* Local types from header imports or local types at all that are not structs or
-  enums
-* Opcode settings (Options > General > Number of opcode bytes) don't sync
+We are tracking in 2 categories the issues on our github repository:
 
-### Known issues due to IDArling use
+* [Fatal non-propagated features](https://github.com/fidgetingbits/IDArling/labels/fatal%20non-propagated%20feature): 
+  These are features of IDA that are not propagated over IDArling that 
+  potentially corrupt the IDB. An example would be if new types were not created 
+  properly. If it were the case, it means all actions that depend on the types 
+  existing would be broken, e.g. decompiler/disassembler output that relies on 
+  these structures, etc.
+* [Non-propagated features](https://github.com/fidgetingbits/IDArling/issues?q=is%3Aissue+is%3Aopen+label%3A%22non-propagated+feature%22):
+  These are features of IDA that are not propagated over IDArling but do not 
+  risk corrupting the IDB. An example would be if bookmarks were not propagated.
+  It is not the case but if it were, only bookmarks would be missing and all the
+  other contents from the IDBs would still be sane.
 
-* IDA uses a type ID when creating new structures, but the type IDs 
-themselves aren't  synced, which can cause type mismatch. Basically when 
-adding a pointer type, they are kept only in local types and they are not 
-added to the structure or enum tab, so don't sync and/or generate events. 
-This means that one persons IDB has a type ID defined in local types, but the 
-other user won't, so when the other user inevitably adds their own new type 
-themselves, their new type ID will conflict with the original users pointer 
-type.
+Note that some of the issues have been marked as "won't fix" and closed as atm
+we don't think they are worth fixing but feel free to add comments if you disagree.
 
 # Thanks
 

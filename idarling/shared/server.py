@@ -15,6 +15,7 @@ import os
 import socket
 import ssl
 import threading
+import bz2
 
 from .commands import (
     CreateGroup,
@@ -109,7 +110,6 @@ class ServerClient(ClientSocket):
                 return "(%s) %s" % (prefix, msg), kwargs
 
         self._logger = CustomAdapter(self._logger, {})
-        self._logger.info("Connected")
 
     def disconnect(self, err=None, notify=True):
         # Notify other users that we disconnected
@@ -117,7 +117,6 @@ class ServerClient(ClientSocket):
         if self._group and self._project and self._database and notify:
             self.parent().forward_users(self, LeaveSession(self.name, False))
         ClientSocket.disconnect(self, err)
-        self._logger.info("Disconnected")
 
     def recv_packet(self, packet):
         if isinstance(packet, Command):
@@ -256,8 +255,9 @@ class ServerClient(ClientSocket):
         file_path = self.parent().server_file(file_name)
 
         # Write the file received to disk
+        decompressed_content = bz2.decompress(query.content)
         with open(file_path, "wb") as output_file:
-            output_file.write(query.content)
+            output_file.write(decompressed_content)
         self._logger.info("Saved file %s" % file_name)
         self.send_packet(UpdateFile.Reply(query))
 
@@ -271,7 +271,8 @@ class ServerClient(ClientSocket):
         # Read file from disk and sent it
         reply = DownloadFile.Reply(query)
         with open(file_path, "rb") as input_file:
-            reply.content = input_file.read()
+            uncompressed_content = input_file.read()
+        reply.content = bz2.compress(uncompressed_content)
         self._logger.info("Loaded file %s" % file_name)
         self.send_packet(reply)
 
@@ -291,6 +292,7 @@ class ServerClient(ClientSocket):
         for user in self.parent().get_users(self):
             self.send_packet(
                 JoinSession(
+                    packet.group,
                     packet.project,
                     packet.database,
                     packet.tick,
