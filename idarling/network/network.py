@@ -87,6 +87,8 @@ class Network(Module):
         # Wrap the socket in a SSL tunnel
         if not no_ssl:
             ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
             sock = ctx.wrap_socket(
                 sock, server_hostname=host, do_handshake_on_connect=False
             )
