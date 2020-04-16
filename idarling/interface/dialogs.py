@@ -18,6 +18,7 @@ import platform
 
 import ida_loader
 import ida_nalt
+import idc
 
 from PyQt5.QtCore import QRegExp, Qt  # noqa: I202
 from PyQt5.QtGui import QIcon, QRegExpValidator
@@ -289,8 +290,9 @@ class OpenDialog(QDialog):
         # cases
         # E.g. below we support "Portable executable for 80386 (PE)" vs 
         # "Portable executable for AMD64 (PE)"
-        if (platform.architecture()[0] == "64bit" and "80386" in project_type) \
-         or (platform.architecture()[0] == "32bit" and "AMD64" in project_type):
+        # ida.exe vs ida64.exe can be determined using idc.BADADDR trick
+        if (idc.BADADDR == 0xffffffffffffffff and "80386" in project_type) \
+         or (idc.BADADDR == 0xffffffff and "AMD64" in project_type):
             QMessageBox.about(self, "IDArling Error", "Wrong architecture!\n"
                     "You must use the right version of IDA/IDA64,")
             return
