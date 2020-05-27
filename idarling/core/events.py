@@ -1053,8 +1053,10 @@ class UserLvarSettingsEvent(HexRaysEvent):
                 key = UserLvarSettingsEvent._get_lvar_locator(key)
                 val = UserLvarSettingsEvent._get_lvar_locator(val)
                 ida_hexrays.lvar_mapping_insert(lvinf.lmaps, key, val)
-        lvinf.stkoff_delta = self.lvar_settings["stkoff_delta"]
-        lvinf.ulv_flags = self.lvar_settings["ulv_flags"]
+        if "stkoff_delta" in self.lvar_settings:
+            lvinf.stkoff_delta = self.lvar_settings["stkoff_delta"]
+        if "ulv_flags" in self.lvar_settings:
+            lvinf.ulv_flags = self.lvar_settings["ulv_flags"]
         ida_hexrays.save_user_lvar_settings(self.ea, lvinf)
         HexRaysEvent.refresh_pseudocode_view(self.ea)
 
