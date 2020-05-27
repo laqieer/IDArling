@@ -19,7 +19,7 @@ import platform
 import ida_loader
 import ida_nalt
 
-from PyQt5.QtCore import QRegExp, Qt  # noqa: I202
+from PyQt5.QtCore import QRegExp, Qt, QDir  # noqa: I202
 from PyQt5.QtGui import QIcon, QRegExpValidator
 from PyQt5.QtWidgets import (
     QCheckBox,
@@ -40,7 +40,7 @@ from PyQt5.QtWidgets import (
     QTableWidgetItem,
     QTabWidget,
     QVBoxLayout,
-    QWidget,
+    QWidget, QSizePolicy, QFileDialog,
 )
 
 from ..shared.commands import (
@@ -53,6 +53,9 @@ from ..shared.commands import (
     ListDatabases,
     UpdateUserColor,
     UpdateUserName,
+    DeleteGroup,
+    DeleteProject,
+    DeleteDatabase,
 )
 from ..shared.models import Group, Project, Database
 
@@ -95,6 +98,11 @@ class OpenDialog(QDialog):
         self._left_layout.addWidget(self._groups_table)
         main_layout.addWidget(self._left_side, 0, 0)
         main_layout.setColumnStretch(0, 1)
+        
+        self.delete_group_button = QPushButton("Delete Group", self._left_side)
+        self.delete_group_button.setEnabled(False)
+        self.delete_group_button.clicked.connect(self._delete_group_clicked)
+        self._left_layout.addWidget(self.delete_group_button)
 
         # Projects - middle layout
         self._middle_side = QWidget(main)
@@ -118,6 +126,15 @@ class OpenDialog(QDialog):
         self._rename_project_button.setEnabled(False)
         self._rename_project_button.clicked.connect(self._rename_project_button_clicked)
         self._middle_layout.addWidget(self._rename_project_button)
+        
+        self._delete_project_button = QPushButton(
+            "Delete Project", self._middle_side
+        )
+        self._delete_project_button.setEnabled(False)
+        self._delete_project_button.clicked.connect(
+            self._delete_project_clicked
+        )
+        self._middle_layout.addWidget(self._delete_project_button)
 
         # Databases - right layout
         right_side = QWidget(main)
@@ -157,6 +174,15 @@ class OpenDialog(QDialog):
             self._database_double_clicked
         )
         self._databases_layout.addWidget(self._databases_table)
+
+        self._delete_database_button = QPushButton(
+            "Delete Database", self._databases_group
+        )
+        self._delete_database_button.setEnabled(False)
+        self._delete_database_button.clicked.connect(
+            self._delete_database_clicked
+        )
+        self._databases_layout.addWidget(self._delete_database_button)
         right_layout.addWidget(self._databases_group)
 
         # General buttons - bottom right "stretched" layout
@@ -209,6 +235,8 @@ class OpenDialog(QDialog):
         d = self._plugin.network.send_packet(ListProjects.Query(group.name))
         d.add_callback(partial(self._projects_listed))
         d.add_errback(self._plugin.logger.exception)
+        
+        self.delete_group_button.setEnabled(True)
 
     def _projects_listed(self, reply):
         self._plugin.logger.debug("OpenDialog._projects_listed()")
@@ -227,6 +255,19 @@ class OpenDialog(QDialog):
             item.setFlags(item.flags() & ~Qt.ItemIsEditable)
             self._projects_table.setItem(i, 0, item)
 
+    def _delete_group_clicked(self):
+        self._plugin.logger.debug("OpenDialog._delete_group_clicked()")
+        group = self._groups_table.selectedItems()[0].data(Qt.UserRole)
+        d = self._plugin.network.send_packet(DeleteGroup.Query(group.name))
+        d.add_callback(partial(self._group_deleted, group))
+        d.add_errback(self._plugin.logger.exception)
+
+    def _group_deleted(self, group, _):
+        for e in self._groups:
+            if e.name == group.name:
+                self._groups.remove(e)
+        self._refresh_groups()
+    
     def _project_clicked(self):
         """Called when a project item is clicked."""
         self._plugin.logger.debug("OpenDialog._project_clicked()")
@@ -250,6 +291,26 @@ class OpenDialog(QDialog):
         d.add_callback(partial(self._databases_listed))
         d.add_errback(self._plugin.logger.exception)
         self._rename_project_button.setEnabled(True)
+        self._delete_project_button.setEnabled(True)
+
+    def _delete_project_clicked(self):
+        self._plugin.logger.debug("OpenDialog._delete_project_clicked()")
+        group = self._groups_table.selectedItems()[0].data(Qt.UserRole)
+        project_items = self._projects_table.selectedItems()
+        if not project_items:
+            self._plugin.logger.info("No selected item 2")
+            return
+        project = project_items[0].data(Qt.UserRole)
+        d = self._plugin.network.send_packet(DeleteProject.Query(group.name, project.name))
+        d.add_callback(partial(self._project_deleted, project))
+        d.add_errback(self._plugin.logger.exception)
+
+    def _project_deleted(self, project, _):
+        for e in self._projects:
+            if e.name == project.name:
+                self._projects.remove(e)
+        self._refresh_projects()
+        self._databases_table.clearContents()
 
     def _databases_listed(self, reply):
         """Called when the databases list is received."""
@@ -280,6 +341,26 @@ class OpenDialog(QDialog):
 
     def _database_clicked(self):
         self._accept_button.setEnabled(True)
+        self._delete_database_button.setEnabled(True)
+
+    def _delete_database_clicked(self):
+        self._plugin.logger.debug("OpenDialog._delete_database_clicked()")
+        group = self._groups_table.selectedItems()[0].data(Qt.UserRole)
+        project_items = self._projects_table.selectedItems()
+        if not project_items:
+            self._plugin.logger.info("No selected item 2")
+            return
+        project = project_items[0].data(Qt.UserRole)
+        database = self._databases_table.selectedItems()[0].data(Qt.UserRole)
+        d = self._plugin.network.send_packet(DeleteDatabase.Query(group.name, project.name, database.name))
+        d.add_callback(partial(self._database_deleted, database))
+        d.add_errback(self._plugin.logger.exception)
+
+    def _database_deleted(self, database, _):
+        for e in self._databases:
+            if e.name == database.name:
+                self._databases.remove(e)
+        self._refresh_databases()
 
     def _database_double_clicked(self):
         project_type = self._projects_table.selectedItems()[0].data(Qt.UserRole).type
@@ -556,6 +637,55 @@ class SaveDialog(OpenDialog):
                 item = self._databases_table.item(row, col)
                 item.setFlags(item.flags() | Qt.ItemIsEnabled)
 
+    # def _delete_group_clicked(self):
+    #     self._plugin.logger.debug("OpenDialog._delete_group_clicked()")
+    #     group = self._groups_table.selectedItems()[0].data(Qt.UserRole)
+    #     d = self._plugin.network.send_packet(DeleteGroup.Query(group.name))
+    #     d.add_callback(partial(self._group_deleted, group))
+    #     d.add_errback(self._plugin.logger.exception)
+    #
+    # def _group_deleted(self, group, _):
+    #     for e in self._groups:
+    #         if e.name == group.name:
+    #             self._groups.remove(e)
+    #     self._refresh_groups()
+    #
+    # def _delete_project_clicked(self):
+    #     self._plugin.logger.debug("OpenDialog._delete_project_clicked()")
+    #     group = self._groups_table.selectedItems()[0].data(Qt.UserRole)
+    #     project_items = self._projects_table.selectedItems()
+    #     if not project_items:
+    #         self._plugin.logger.info("No selected item 2")
+    #         return
+    #     project = project_items[0].data(Qt.UserRole)
+    #     d = self._plugin.network.send_packet(DeleteProject.Query(group.name, project.name))
+    #     d.add_callback(partial(self._project_deleted, project))
+    #     d.add_errback(self._plugin.logger.exception)
+    #
+    # def _project_deleted(self, project, _):
+    #     for e in self._projects:
+    #         if e.name == project.name:
+    #             self._projects.remove(e)
+    #     self._refresh_projects()
+    #
+    # def _delete_database_clicked(self):
+    #     self._plugin.logger.debug("OpenDialog._delete_database_clicked()")
+    #     group = self._groups_table.selectedItems()[0].data(Qt.UserRole)
+    #     project_items = self._projects_table.selectedItems()
+    #     if not project_items:
+    #         self._plugin.logger.info("No selected item 2")
+    #         return
+    #     project = project_items[0].data(Qt.UserRole)
+    #     database = self._databases_table.selectedItems()[0].data(Qt.UserRole)
+    #     d = self._plugin.network.send_packet(DeleteDatabase.Query(group.name, project.name, database.name))
+    #     d.add_callback(partial(self._database_deleted, database))
+    #     d.add_errback(self._plugin.logger.exception)
+    #
+    # def _database_deleted(self, database, _):
+    #     for e in self._databases:
+    #         if e.name == database.name:
+    #             self._databases.remove(e)
+    #     self._refresh_databases()
 
 class CreateGroupDialog(QDialog):
     """The dialog shown when an user wants to create a group."""
@@ -669,7 +799,18 @@ class SettingsDialog(QDialog):
         name = self._plugin.config["user"]["name"]
         self._name_line_edit.setText(name)
         user_layout.addWidget(self._name_line_edit)
-
+        
+        dir_combo_box = QWidget(tab)
+        dir_combo_box_layout = QGridLayout()
+        browseButton = self._createButton("&Browse...", self._browse_button_clicked)
+        self.directoryComboBox = self._createComboBox(self._plugin.config["files_dir"])
+        directoryLabel = QLabel("Files directory:")
+        dir_combo_box_layout.addWidget(directoryLabel, 0, 0)
+        dir_combo_box_layout.addWidget(self.directoryComboBox, 0, 1)
+        dir_combo_box_layout.addWidget(browseButton, 0, 2)
+        dir_combo_box.setLayout(dir_combo_box_layout)
+        layout.addRow(dir_combo_box)
+        
         text = "Disable all user cursors"
         self._disable_all_cursors_checkbox = QCheckBox(text)
         layout.addRow(self._disable_all_cursors_checkbox)
@@ -1044,7 +1185,32 @@ class SettingsDialog(QDialog):
         if self._plugin.network.client:
             self._plugin.network.client.set_keep_alive(cnt, intvl, idle)
 
+        files_path = self.directoryComboBox.currentText()
+        self._plugin.config["files_dir"] = files_path
+
         self._plugin.save_config()
+        
+    def _createButton(self, text, member):
+        button = QPushButton(text)
+        button.clicked.connect(member)
+        return button
+
+    def _createComboBox(self,text):
+        comboBox = QComboBox()
+        comboBox.setEditable(True)
+        comboBox.addItem(text)
+        comboBox.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        return comboBox
+    
+    def _browse_button_clicked(self):
+        directory = QFileDialog.getExistingDirectory(self, "Find Files",
+                self.directoryComboBox.currentText())
+
+        if directory:
+            if self.directoryComboBox.findText(directory) == -1:
+                self.directoryComboBox.addItem(directory)
+
+            self.directoryComboBox.setCurrentIndex(self.directoryComboBox.findText(directory))
 
 class RenameProjectDialog(QDialog):
     """The dialog shown when an user wants to rename a project."""

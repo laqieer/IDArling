@@ -18,6 +18,7 @@ import ida_bytes
 import ida_enum
 import ida_funcs
 import ida_hexrays
+import ida_idaapi
 import ida_kernwin
 import ida_lines
 import ida_nalt
@@ -33,7 +34,7 @@ import ida_idc
 import ida_offset
 import idc
 
-from ..shared.local_types import GetTypeString
+from ..shared.local_types import GetTypeString, LocalType, InsertType
 from ..shared.packets import DefaultEvent
 
 if sys.version_info > (3,):
@@ -113,24 +114,29 @@ class MakeDataEvent(Event):
         self.tid = tid
 
     def __call__(self):
-        ida_bytes.create_data(self.ea, self.flags, self.size, self.tid)
+        ida_bytes.create_data(self.ea, ida_bytes.calc_dflags(self.flags, True), self.size, self.tid)
 
 
 class RenamedEvent(Event):
     __event__ = "renamed"
 
-    def __init__(self, ea, new_name, local_name):
+    def __init__(self, ea, new_name, old_name, local_name):
         super(RenamedEvent, self).__init__()
         self.ea = ea
+        self.old_name = old_name
         self.new_name = new_name
         self.local_name = local_name
 
     def __call__(self):
         flags = ida_name.SN_LOCAL if self.local_name else 0
+        if self.old_name:
+            self.ea = ida_struct.get_member_by_fullname(self.old_name).id
         ida_name.set_name(
             self.ea, self.new_name, flags | ida_name.SN_NOWARN
         )
         ida_kernwin.request_refresh(ida_kernwin.IWID_DISASMS)
+        ida_kernwin.request_refresh(ida_kernwin.IWID_STRUCTS)
+        ida_kernwin.request_refresh(ida_kernwin.IWID_STKVIEW)
         HexRaysEvent.refresh_pseudocode_view(self.ea)
 
 
@@ -277,10 +283,11 @@ class ExtraCmtChangedEvent(Event):
 class TiChangedEvent(Event):
     __event__ = "ti_changed"
 
-    def __init__(self, ea, py_type):
+    def __init__(self, ea, py_type, name):
         super(TiChangedEvent, self).__init__()
         self.ea = ea
         self.py_type = []
+        self.name = name
         if py_type:
             self.py_type.extend(Event.decode_bytes(t) for t in py_type)
 
@@ -289,9 +296,11 @@ class TiChangedEvent(Event):
         if len(py_type) == 3:
             py_type = py_type[1:]
         if len(py_type) >= 2:
+            if self.name:
+                self.ea = ida_struct.get_member_by_fullname(self.name).id
             ida_typeinf.apply_type(
                 None,
-                GetTypeString(pickle.loads(py_type[0])),
+                GetTypeString(py_type[0]),
                 py_type[1],
                 self.ea,
                 ida_typeinf.TINFO_DEFINITE,
@@ -303,74 +312,71 @@ class LocalTypesChangedEvent(Event):
 
     def __init__(self, local_types):
         super(LocalTypesChangedEvent, self).__init__()
-        self.local_types = []
-        for py_ord, name, type, fields, cmt, fieldcmts, sclass in local_types:
-            name = Event.decode_bytes(name)
-            type = Event.decode_bytes(type)
-            fields = Event.decode_bytes(fields)
-            cmt = Event.decode_bytes(cmt)
-            fieldcmts = Event.decode_bytes(fieldcmts)
-            self.local_types.append(
-                (py_ord, name, type, fields, cmt, fieldcmts, sclass)
-            )
+        self.local_types = local_types
 
     def __call__(self):
-        from .core import Core
-
-        dll = Core.get_ida_dll()
-
-        get_idati = dll.get_idati
-        get_idati.argtypes = []
-        get_idati.restype = ctypes.c_void_p
-
-        set_numbered_type = dll.set_numbered_type
-        set_numbered_type.argtypes = [
-            ctypes.c_void_p,
-            ctypes.c_uint32,
-            ctypes.c_int,
-            ctypes.c_char_p,
-            ctypes.c_char_p,
-            ctypes.c_char_p,
-            ctypes.c_char_p,
-            ctypes.c_char_p,
-            ctypes.c_int,
-        ]
-        set_numbered_type.restype = ctypes.c_int
-
-        py_ti = ida_typeinf.get_idati()
-        ordinal_qty = ida_typeinf.get_ordinal_qty(py_ti) - 1
-        last_ordinal = self.local_types[-1][0]
-        if ordinal_qty < last_ordinal:
-            ida_typeinf.alloc_type_ordinals(py_ti, last_ordinal - ordinal_qty)
-        else:
-            for py_ordinal in range(last_ordinal + 1, ordinal_qty + 1):
-                ida_typeinf.del_numbered_type(py_ti, py_ordinal)
-
-        local_types = self.local_types
-        for py_ord, name, type, fields, cmt, fieldcmts, sclass in local_types:
-            if type:
-                ti = get_idati()
-                ordinal = ctypes.c_uint32(py_ord)
-                ntf_flags = ctypes.c_int(ida_typeinf.NTF_REPLACE)
-                name = ctypes.c_char_p(Event.encode_bytes(name))
-                type = ctypes.c_char_p(Event.encode_bytes(type))
-                fields = ctypes.c_char_p(Event.encode_bytes(fields))
-                cmt = ctypes.c_char_p(Event.encode_bytes(cmt))
-                fieldcmts = ctypes.c_char_p(Event.encode_bytes(fieldcmts))
-                sclass = ctypes.c_int(sclass)
-                set_numbered_type(
-                    ti,
-                    ordinal,
-                    ntf_flags,
-                    name,
-                    type,
-                    fields,
-                    cmt,
-                    fieldcmts,
-                    sclass,
-                )
-
+        for t_old, t_new in self.local_types:
+            if t_new:
+                name, parsed_list, type_fields = t_new
+                t_new = LocalType(name=name,parsedList=parsed_list,TypeFields=type_fields.encode())
+                InsertType(t_new,fReplace=True)
         ida_kernwin.request_refresh(ida_kernwin.IWID_LOCTYPS)
+        # from .core import Core
+        #
+        # dll = Core.get_ida_dll()
+        #
+        # get_idati = dll.get_idati
+        # get_idati.argtypes = []
+        # get_idati.restype = ctypes.c_void_p
+        #
+        # set_numbered_type = dll.set_numbered_type
+        # set_numbered_type.argtypes = [
+        #     ctypes.c_void_p,
+        #     ctypes.c_uint32,
+        #     ctypes.c_int,
+        #     ctypes.c_char_p,
+        #     ctypes.c_char_p,
+        #     ctypes.c_char_p,
+        #     ctypes.c_char_p,
+        #     ctypes.c_char_p,
+        #     ctypes.c_int,
+        # ]
+        # set_numbered_type.restype = ctypes.c_int
+        #
+        # py_ti = ida_typeinf.get_idati()
+        # ordinal_qty = ida_typeinf.get_ordinal_qty(py_ti) - 1
+        # last_ordinal = self.local_types[-1][0]
+        # if ordinal_qty < last_ordinal:
+        #     ida_typeinf.alloc_type_ordinals(py_ti, last_ordinal - ordinal_qty)
+        # else:
+        #     for py_ordinal in range(last_ordinal + 1, ordinal_qty + 1):
+        #         ida_typeinf.del_numbered_type(py_ti, py_ordinal)
+        #
+        # local_types = self.local_types
+        # for py_ord, name, type, fields, cmt, fieldcmts, sclass in local_types:
+        #     if type:
+        #         ti = get_idati()
+        #         ordinal = ctypes.c_uint32(py_ord)
+        #         ntf_flags = ctypes.c_int(ida_typeinf.NTF_REPLACE)
+        #         name = ctypes.c_char_p(Event.encode_bytes(name))
+        #         type = ctypes.c_char_p(Event.encode_bytes(type))
+        #         fields = ctypes.c_char_p(Event.encode_bytes(fields))
+        #         cmt = ctypes.c_char_p(Event.encode_bytes(cmt))
+        #         fieldcmts = ctypes.c_char_p(Event.encode_bytes(fieldcmts))
+        #         sclass = ctypes.c_int(sclass)
+        #         set_numbered_type(
+        #             ti,
+        #             ordinal,
+        #             ntf_flags,
+        #             name,
+        #             type,
+        #             fields,
+        #             cmt,
+        #             fieldcmts,
+        #             sclass,
+        #         )
+        #
+        # ida_kernwin.request_refresh(ida_kernwin.IWID_LOCTYPS)
 
 
 class OpTypeChangedEvent(Event):
@@ -529,7 +535,7 @@ class StrucCreatedEvent(Event):
 
     def __call__(self):
         ida_struct.add_struc(
-            self.struc, self.name, self.is_union
+            ida_idaapi.BADADDR, self.name, self.is_union
         )
 
 
@@ -926,6 +932,16 @@ class SgrChanged(Event):
 
         ida_kernwin.request_refresh(ida_kernwin.IWID_SEGREGS)
 
+class MakeUnknown(Event):
+    __event__ = "make_unknown"
+
+    def __init__(self, ea):
+        super(MakeUnknown, self).__init__()
+        self.ea = ea
+
+    def __call__(self):
+        ida_bytes.del_items(self.ea,1)
+
 
 # class GenRegvarDefEvent(Event):
 #    __event__ = "gen_regvar_def"
@@ -963,8 +979,9 @@ class HexRaysEvent(Event):
                 # Check if the address is in the same function
                 func_ea = vu.cfunc.entry_ea
                 func = ida_funcs.get_func(func_ea)
+                # print("refresh_pseudocode_view: func_ea = 0x%X, ea = 0x%X, " % (func_ea, ea), ida_funcs.func_contains(func, ea))
                 if ida_funcs.func_contains(func, ea):
-                    vu.refresh_view(True)
+                    vu.refresh_view(False)
 
 
 class UserLabelsEvent(HexRaysEvent):
@@ -1038,27 +1055,30 @@ class UserLvarSettingsEvent(HexRaysEvent):
         self.lvar_settings = lvar_settings
 
     def __call__(self):
-        lvinf = ida_hexrays.lvar_uservec_t()
-        lvinf.lvvec = ida_hexrays.lvar_saved_infos_t()
-        if "lvvec" in self.lvar_settings:
-            for lv in self.lvar_settings["lvvec"]:
-                lvinf.lvvec.push_back(
-                    UserLvarSettingsEvent._get_lvar_saved_info(lv)
-                )
-        lvinf.sizes = ida_pro.intvec_t()
-        if "sizes" in self.lvar_settings:
-            for i in self.lvar_settings["sizes"]:
-                lvinf.sizes.push_back(i)
-        lvinf.lmaps = ida_hexrays.lvar_mapping_t()
-        if "lmaps" in self.lvar_settings:
-            for key, val in self.lvar_settings["lmaps"]:
-                key = UserLvarSettingsEvent._get_lvar_locator(key)
-                val = UserLvarSettingsEvent._get_lvar_locator(val)
-                ida_hexrays.lvar_mapping_insert(lvinf.lmaps, key, val)
-        lvinf.stkoff_delta = self.lvar_settings["stkoff_delta"]
-        lvinf.ulv_flags = self.lvar_settings["ulv_flags"]
-        ida_hexrays.save_user_lvar_settings(self.ea, lvinf)
-        HexRaysEvent.refresh_pseudocode_view(self.ea)
+        if len(self.lvar_settings) != 0:
+            lvinf = ida_hexrays.lvar_uservec_t()
+            lvinf.lvvec = ida_hexrays.lvar_saved_infos_t()
+            if "lvvec" in self.lvar_settings:
+                for lv in self.lvar_settings["lvvec"]:
+                    lvinf.lvvec.push_back(
+                        UserLvarSettingsEvent._get_lvar_saved_info(lv)
+                    )
+            lvinf.sizes = ida_pro.intvec_t()
+            if "sizes" in self.lvar_settings:
+                for i in self.lvar_settings["sizes"]:
+                    lvinf.sizes.push_back(i)
+            lvinf.lmaps = ida_hexrays.lvar_mapping_t()
+            if "lmaps" in self.lvar_settings:
+                for key, val in self.lvar_settings["lmaps"]:
+                    key = UserLvarSettingsEvent._get_lvar_locator(key)
+                    val = UserLvarSettingsEvent._get_lvar_locator(val)
+                    ida_hexrays.lvar_mapping_insert(lvinf.lmaps, key, val)
+            if "stkoff_delta" in self.lvar_settings:
+                lvinf.stkoff_delta = self.lvar_settings["stkoff_delta"]
+            if "ulv_flags" in self.lvar_settings:
+                lvinf.ulv_flags = self.lvar_settings["ulv_flags"]
+            ida_hexrays.save_user_lvar_settings(self.ea, lvinf)
+            HexRaysEvent.refresh_pseudocode_view(self.ea)
 
     @staticmethod
     def _get_lvar_saved_info(dct):
@@ -1076,7 +1096,7 @@ class UserLvarSettingsEvent(HexRaysEvent):
         # type = Event.encode_bytes(type)
         fields = Event.encode_bytes(fields)
         fldcmts = Event.encode_bytes(fldcmts)
-        type = GetTypeString(pickle.loads(Event.encode_bytes(parsed_list)))
+        type = None if parsed_list is None else GetTypeString(pickle.loads(Event.encode_bytes(parsed_list)))
         type_ = ida_typeinf.tinfo_t()
         if type is not None:
             type_.deserialize(None, type, fields, fldcmts)

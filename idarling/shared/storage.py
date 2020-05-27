@@ -175,6 +175,24 @@ class Storage(object):
         result = c.fetchone()
         return result["tick"] if result else 0
 
+    def delete_events(self, group, project, database):
+        self._delete("events", {"group_name": group, "project": project, "database": database})
+
+    def delete_database(self, group, project, database):
+        self.delete_events(group, project, database)
+        self._delete("databases", {"group_name": group, "project": project, "name": database})
+
+    def delete_project(self, group, project):
+        self._delete("events", {"group_name": group, "project": project})
+        self._delete("databases", {"group_name": group, "project": project})
+        self._delete("projects", {"group_name": group, "name": project})
+
+    def delete_group(self, group):
+        self._delete("events", {"group_name": group})
+        self._delete("databases", {"group_name": group})
+        self._delete("projects", {"group_name": group})
+        self._delete("groups", {"name": group})
+
     def _create(self, table, cols):
         """Create a table with the given name and columns."""
         c = self._conn.cursor()
@@ -192,6 +210,18 @@ class Storage(object):
         sql += " limit {};".format(limit) if limit else ";"
         c.execute(sql, list(fields.values()))
         return c.fetchall()
+    
+    def _delete(self, table, fields):
+        """Select the rows of a table matching the given values."""
+        c = self._conn.cursor()
+        sql = "delete from {}".format(table)
+        fields = {key: val for key, val in fields.items() if val}
+        if len(fields):
+            cols = ["{} = ?".format(col) for col in fields.keys()]
+            sql = (sql + " where {}").format(" and ".join(cols))
+        sql +=  ";"
+        c.execute(sql, list(fields.values()))
+
 
     def _update(self, table, field, new_value, search_fields, limit=None):
         """Update the field in a table matching the given search fields."""

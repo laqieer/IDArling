@@ -4,6 +4,7 @@ import pickle
 import struct
 
 import ida_pro
+import ida_typeinf
 import idaapi
 import idc
 
@@ -106,6 +107,8 @@ class LocalType(object):
         # print "Type string: %s"%self.TypeString.encode("HEX")
         if self.TypeString != b"":
             self.parsedList = self.ParseTypeString(self.TypeString)
+        if self.parsedList is not None and self.TypeString == b"":
+            self.TypeString = self.GetTypeString()
         if self.TypeString != b"":
             if self.is_su():
                 self.flags |= 1
@@ -242,8 +245,20 @@ class LocalType(object):
         return self.flags & 8 == 8
     
     def isEqual(self, t):
-        return self.print_type() == t.print_type()
+        if t and  self.parsedList == t.parsedList \
+                and self.TypeFields == t.TypeFields \
+                and self.name == t.name:
+            return True
+        return False
     
+    def __eq__(self, other):
+        if isinstance(other, LocalType):
+            return self.isEqual(other)
+        return False
+        
+    def to_tuple(self):
+       return self.name, self.parsedList, self.TypeFields.decode()
+   
     def is_complex(self):
         return self.TypeString[0] & idaapi.TYPE_BASE_MASK == idaapi.BT_COMPLEX
     
@@ -390,12 +405,13 @@ def GetTypeString(parsedList, name=""):
 
 
 def ImportLocalType(idx):
-    name = idc.get_numbered_type_name(idx)
-    if name is not None:
-        ret = idaapi.get_numbered_type(
-            idaapi.get_idati(),
-            idx
-        )
+    name = ida_typeinf.get_numbered_type_name(ida_typeinf.get_idati(), idx)
+    # todo: doing something with empty and error types
+    ret = ida_typeinf.get_numbered_type(
+        ida_typeinf.get_idati(),
+        idx
+    )
+    if ret is not None:
         typ_type, typ_fields, typ_cmt, typ_fieldcmts, typ_sclass = ret
         if typ_type is None:
             typ_type = b""
@@ -406,6 +422,27 @@ def ImportLocalType(idx):
         if typ_fieldcmts is None:
             typ_fieldcmts = b""
         return LocalType(name, typ_type, typ_fields, typ_cmt, typ_fieldcmts, typ_sclass)
+    return None
+
+def ImportNamedLocalType(idx):
+    name = ida_typeinf.get_numbered_type_name(ida_typeinf.get_idati(), idx)
+    if name:
+        # todo: doing something with empty and error types
+        ret = ida_typeinf.get_numbered_type(
+            ida_typeinf.get_idati(),
+            idx
+        )
+        if ret is not None:
+            typ_type, typ_fields, typ_cmt, typ_fieldcmts, typ_sclass = ret
+            if typ_type is None:
+                typ_type = b""
+            if typ_fields is None:
+                typ_fields = b""
+            if typ_cmt is None:
+                typ_cmt = b""
+            if typ_fieldcmts is None:
+                typ_fieldcmts = b""
+            return LocalType(name, typ_type, typ_fields, typ_cmt, typ_fieldcmts, typ_sclass)
     return None
 
 
@@ -424,8 +461,8 @@ def DuplicateResolver(t1, t2, fToStorage=False):
 
 
 def getTypeOrdinal(name):
-    my_ti = idaapi.get_idati()
-    return idaapi.get_type_ordinal(my_ti, name)
+    my_ti = ida_typeinf.get_idati()
+    return ida_typeinf.get_type_ordinal(my_ti, name)
 
 
 def InsertType(type_obj, fReplace=False):
@@ -441,9 +478,9 @@ def InsertType(type_obj, fReplace=False):
         if not fReplace:
             type_obj = DuplicateResolver(t, type_obj, False)
     else:
-        idx = idaapi.alloc_type_ordinals(idaapi.get_idati(), 1)
-    tif = idaapi.tinfo_t()
-    ret = tif.deserialize(idaapi.get_idati(), type_obj.GetTypeString(), type_obj.TypeFields, type_obj.fieldcmts)
+        idx = ida_typeinf.alloc_type_ordinals(idaapi.get_idati(), 1)
+    tif = ida_typeinf.tinfo_t()
+    ret = tif.deserialize(ida_typeinf.get_idati(), type_obj.GetTypeString(), type_obj.TypeFields, type_obj.fieldcmts)
     if not ret:
         idaapi.warning("Error on tinfo deserilization, type name = %s, ret = %d" % (type_obj.name, ret))
         ret = -1

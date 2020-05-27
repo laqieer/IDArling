@@ -24,6 +24,9 @@ from ..shared.commands import (
     UpdateLocation,
     UpdateUserColor,
     UpdateUserName,
+    DeleteGroup,
+    DeleteProject,
+    DeleteDatabase,
 )
 from ..shared.packets import Command, Event
 from ..shared.sockets import ClientSocket
@@ -49,6 +52,9 @@ class Client(ClientSocket):
             UpdateUserName: self._handle_update_user_name,
             UpdateUserColor: self._handle_update_user_color,
             DownloadFile.Query: self._handle_download_file,
+            DeleteGroup: self._handle_delete_group,
+            DeleteProject: self._handle_delete_project,
+            DeleteDatabase: self._handle_delete_database,
         }
 
     def call_events(self):
@@ -179,3 +185,15 @@ class Client(ClientSocket):
         self._plugin.interface.save_action.handler.upload_file(
             self._plugin, DownloadFile.Reply(query)
         )
+
+    def _handle_delete_group(self, packet):
+        #TODO: Handle situation then user database in deleted group
+        self.disconnect()
+        
+    def _handle_delete_project(self, packet):
+        #TODO: Handle situation then user database in deleted project
+        self.disconnect()
+        
+    def _handle_delete_database(self, packet):
+        #TODO: Handle situation then user database deleted
+        self.disconnect()

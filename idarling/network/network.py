@@ -19,6 +19,8 @@ from .server import IntegratedServer
 from ..module import Module
 from ..shared.discovery import ServersDiscovery
 
+# import pydevd_pycharm
+
 
 class Network(Module):
     """
@@ -65,6 +67,7 @@ class Network(Module):
         return True
 
     def connect(self, server):
+        # pydevd_pycharm.settrace('localhost', port=2233, stdoutToServer=True, stderrToServer=True, suspend=True)
         """Connect to the specified server."""
         # Make sure we're not already connected
         if self._client:

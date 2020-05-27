@@ -209,7 +209,7 @@ class OpenActionHandler(ActionHandler):
         app_name = QFileInfo(app_path).fileName()
         file_ext = "i64" if "64" in app_name else "idb"
         file_name = "%s_%s_%s.%s" % (group.name, database.project, database.name, file_ext)
-        file_path = self._plugin.user_resource("files", file_name)
+        file_path = os.path.join(self._plugin.config["files_dir"], file_name)
 
         # Write the file to disk
         decompressed_content = bz2.decompress(reply.content)

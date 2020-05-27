@@ -26,10 +26,14 @@ import ida_pro
 import ida_segment
 import ida_struct
 import ida_typeinf
+# import pydevd_pycharm
+
+import sys
+sys.setrecursionlimit(10000)
 
 from . import events as evt  # noqa: I100,I202
 from .events import Event  # noqa: I201
-from ..shared.local_types import ParseTypeString
+from ..shared.local_types import ParseTypeString, ImportLocalType
 
 
 class Hooks(object):
@@ -59,8 +63,49 @@ class IDBHooks(Hooks, ida_idp.IDB_Hooks):
         Hooks.__init__(self, plugin)
         self.last_local_type = None
 
+    def auto_empty_finally(self):
+        self._plugin.logger.debug("auto_empty_finally() triggered")
+        
+    def auto_empty(self):
+        self._plugin.logger.debug("auto_empty() triggered")
+    
     def local_types_changed(self):
         self._plugin.logger.debug("local_types_changed() not implemented yet")
+        changed_types = []
+        # self._plugin.logger.trace(self._plugin.core.local_type_map)
+        for i in range(1, ida_typeinf.get_ordinal_qty(ida_typeinf.get_idati())):
+            t = ImportLocalType(i)
+            if t and t.name and ida_struct.get_struc_id(t.name) == ida_idaapi.BADADDR:
+                if i in self._plugin.core.local_type_map:
+                    t_old = self._plugin.core.local_type_map[i]
+                    if t_old and not t.isEqual(t_old):
+                        changed_types.append((t_old.to_tuple(),t.to_tuple()))
+                    elif t_old is None and i in self._plugin.core.delete_candidates:
+                        if not self._plugin.core.delete_candidates[i].isEqual(t):
+                            changed_types.append((self._plugin.core.delete_candidates[i].to_tuple(), t.to_tuple()))
+                        del self._plugin.core.delete_candidates[i]
+                        
+                else:
+                    changed_types.append((None,t.to_tuple()))
+            if t is None:
+                assert i in self._plugin.core.local_type_map
+                if i in self._plugin.core.local_type_map:
+                    t_old = self._plugin.core.local_type_map[i]
+                    if t_old != t:
+                        self._plugin.core.delete_candidates[i] = t_old
+                    elif i in self._plugin.core.delete_candidates:
+                        #changed_types.append((self._plugin.core.delete_candidates[i],None))
+                        del self._plugin.core.delete_candidates[i]
+                        
+                    # t_old = self._plugin.core.local_type_map[i]
+                    # changed_types.append((t_old,None))
+        # self._plugin.logger.trace(changed_types)
+        # pydevd_pycharm.settrace('localhost', port=2233, stdoutToServer=True, stderrToServer=True, suspend=False)
+        self._plugin.logger.trace("Changed_types: %s"%list(map(lambda x: (x[0][0] if x[0] else None, x[1][0] if x[1] else None),changed_types)))
+        if len(changed_types) > 0:
+            self._send_packet(evt.LocalTypesChangedEvent(changed_types))
+        self._plugin.core.update_local_types_map()
+        return 0
     #     from .core import Core
 
     #     dll = Core.get_ida_dll()
@@ -114,11 +159,14 @@ class IDBHooks(Hooks, ida_idp.IDB_Hooks):
     #             )
     #         )
     #     self._send_packet(evt.LocalTypesChangedEvent(local_types))
-        return 0
+        #return 0
 
     def ti_changed(self, ea, type, fname):
+        name = ""
+        if ida_struct.is_member_id(ea):
+            name = ida_struct.get_struc_name(ea)
         type = ida_typeinf.idc_get_type_raw(ea)
-        self._send_packet(evt.TiChangedEvent(ea, (pickle.dumps(ParseTypeString(type[0])), type[1])))
+        self._send_packet(evt.TiChangedEvent(ea, (ParseTypeString(type[0]), type[1]), name))
         return 0
 
     def op_ti_changed(self, ea, n, type, fnames):
@@ -126,6 +174,7 @@ class IDBHooks(Hooks, ida_idp.IDB_Hooks):
         return 0
 
     def op_type_changed(self, ea, n):
+        self._plugin.logger.debug("op_type_changed(ea = %x, n = %d)"%(ea,n))
         def gather_enum_info(ea, n):
             id = ida_bytes.get_enum_id(ea, n)[0]
             serial = ida_enum.get_enum_idx(id)
@@ -133,10 +182,10 @@ class IDBHooks(Hooks, ida_idp.IDB_Hooks):
 
         extra = {}
         mask = ida_bytes.MS_0TYPE if not n else ida_bytes.MS_1TYPE
-        flags = ida_bytes.get_full_flags(ea) & mask
-
+        flags = ida_bytes.get_full_flags(ea)
+        self._plugin.logger.debug("op_type_changed: flags = 0x%X)" % flags)
         def is_flag(type):
-            return flags == mask & type
+            return flags & mask == mask & type
 
         if is_flag(ida_bytes.hex_flag()):
             op = "hex"
@@ -156,7 +205,7 @@ class IDBHooks(Hooks, ida_idp.IDB_Hooks):
             ename = ida_enum.get_enum_name(id)
             extra["ename"] = Event.decode(ename)
             extra["serial"] = serial
-        elif is_flag(flags & ida_bytes.stroff_flag()):
+        elif flags & ida_bytes.stroff_flag():
             op = "struct"
             path = ida_pro.tid_array(1)
             delta = ida_pro.sval_pointer()
@@ -466,16 +515,21 @@ class IDBHooks(Hooks, ida_idp.IDB_Hooks):
         self._send_packet(evt.SgrChanged(regnum, sreg_ranges))
         return 0
 
-    def make_code(self, insn):
-        self._send_packet(evt.MakeCodeEvent(insn.ea))
-        return 0
+    # def make_code(self, insn):
+    #     self._send_packet(evt.MakeCodeEvent(insn.ea))
+    #     return 0
 
     def make_data(self, ea, flags, tid, size):
+        # TODO: tid --> struct name
+        self._plugin.logger.debug("make_data(ea = %x, flags = %x, tid = %x, size = %x)"%(ea, flags, tid, size))
         self._send_packet(evt.MakeDataEvent(ea, flags, size, tid))
         return 0
 
     def renamed(self, ea, new_name, local_name):
-        self._send_packet(evt.RenamedEvent(ea, new_name, local_name))
+        old_name = ""
+        if ida_struct.is_member_id(ea):
+            old_name = ida_struct.get_struc_name(ea)
+        self._send_packet(evt.RenamedEvent(ea, new_name, old_name, local_name))
         return 0
 
     def byte_patched(self, ea, old_value):
@@ -506,6 +560,14 @@ class IDBHooks(Hooks, ida_idp.IDB_Hooks):
     def callee_addr_changed(self, ea, callee):
         self._plugin.logger.debug("callee_addr_changed() not implemented yet")
         return 0
+    
+    # def destroyed_items(self, ea1, ea2, will_disable_range):
+    #     self._plugin.logger.debug("destroyed_items(ea1 = %x, ea2 = %x, will_disable_range = %d) not implemented yet"%(ea1, ea2, will_disable_range))
+    #     return 0
+    
+    # def changing_op_type(self, ea, n, opinfo):
+    #     self._plugin.logger.debug("changing_op_type(ea = %x, n = %d, opinfo = %s) not implemented yet"%(ea, n, opinfo))
+    #     return 0
 
     def bookmark_changed(self, index, pos, desc):
         rinfo = pos.renderer_info()
@@ -524,13 +586,23 @@ class IDPHooks(Hooks, ida_idp.IDP_Hooks):
         ida_idp.IDP_Hooks.__init__(self)
         Hooks.__init__(self, plugin)
 
-    def ev_undefine(self, ea):
-        self._send_packet(evt.UndefinedEvent(ea))
-        return ida_idp.IDP_Hooks.ev_undefine(self, ea)
+    # def ev_undefine(self, ea):
+    #     self._send_packet(evt.UndefinedEvent(ea))
+    #     return ida_idp.IDP_Hooks.ev_undefine(self, ea)
 
     def ev_adjust_argloc(self, *args):
         return ida_idp.IDP_Hooks.ev_adjust_argloc(self, *args)
 
+    # def ev_emu_insn(self,insn):
+    #     self._plugin.logger.debug("ev_emu_insn(insn.ea = %X) not implemented yet"%insn.ea)
+    #     return ida_idp.IDP_Hooks.ev_emu_insn(self, insn)
+    #
+    # def ev_auto_queue_empty(self,type):
+    #     disp = ida_auto.auto_display_t()
+    #     ida_auto.get_auto_display(disp)
+    #     self._plugin.logger.debug("ev_auto_queue_empty(type = %d. disp.ea = %X, disp.type = %d, disp.state = %d"%(type,disp.ea,disp.type,disp.state))
+    #     return ida_idp.IDP_Hooks.ev_auto_queue_empty(self, type)
+    #
     # def ev_gen_regvar_def(self, outctx, v):
     #    self._send_packet(
     #        evt.GenRegvarDefEvent(outctx.bin_ea, v.canon, v.user, v.cmt)
@@ -666,7 +738,9 @@ class HexRaysHooks(Hooks):
     def _get_user_lvar_settings(ea):
         dct = {}
         lvinf = ida_hexrays.lvar_uservec_t()
-        if ida_hexrays.restore_user_lvar_settings(lvinf, ea):
+        ret = ida_hexrays.restore_user_lvar_settings(lvinf, ea)
+        # print("_get_user_lvar_settings: ret = %x"%ret)
+        if ret:
             dct["lvvec"] = []
             for lv in lvinf.lvvec:
                 dct["lvvec"].append(HexRaysHooks._get_lvar_saved_info(lv))
@@ -698,7 +772,7 @@ class HexRaysHooks(Hooks):
     @staticmethod
     def _get_tinfo(type):
         if type.empty():
-            return None, None, None
+            return None, None, None, None
 
         type, fields, fldcmts = type.serialize()
         fields = Event.decode_bytes(fields)
@@ -770,3 +844,32 @@ class HexRaysHooks(Hooks):
         if numforms != self._cached_funcs[ea]["numforms"]:
             self._send_packet(evt.UserNumformsEvent(ea, numforms))
             self._cached_funcs[ea]["numforms"] = numforms
+
+
+class UIHook(Hooks, ida_kernwin.UI_Hooks):
+    def __init__(self,plugin):
+        ida_kernwin.UI_Hooks.__init__(self)
+        Hooks.__init__(self, plugin)
+        self.actions = []
+        
+    def preprocess_action(self, name):
+        ea = ida_kernwin.get_screen_ea()
+        self._plugin.logger.debug("preprocess_action(name = %s). ea = 0x%X." % (name,ea))
+        if name == "MakeUnknown":
+            self.actions.append((name,ea))
+        elif name == "MakeCode":
+            self.actions.append((name,ea))
+        return 0
+    
+    def postprocess_action(self):
+        self._plugin.logger.debug("postprocess_action()")
+        if len(self.actions):
+            name, ea = self.actions.pop()
+            if name == "MakeUnknown":
+                flags = ida_bytes.get_full_flags(ea)
+                if ida_bytes.is_unknown(flags):
+                    self._send_packet(evt.MakeUnknown(ea))
+            elif name == "MakeCode":
+                flags = ida_bytes.get_full_flags(ea)
+                if ida_bytes.is_code(flags):
+                    self._send_packet(evt.MakeCodeEvent(ea))

@@ -16,6 +16,7 @@ import socket
 import ssl
 import threading
 import bz2
+from functools import partial
 
 from .commands import (
     CreateGroup,
@@ -33,6 +34,9 @@ from .commands import (
     UpdateLocation,
     UpdateUserColor,
     UpdateUserName,
+    DeleteGroup,
+    DeleteProject,
+    DeleteDatabase,
 )
 from .discovery import ClientsDiscovery
 from .packets import Command, Event
@@ -47,6 +51,10 @@ class ServerClient(ClientSocket):
     """
 
     def __init__(self, logger, parent=None):
+        """
+
+        @type parent: Server
+        """
         ClientSocket.__init__(self, logger, parent)
         self._group = None
         self._project = None
@@ -100,6 +108,9 @@ class ServerClient(ClientSocket):
             InviteToLocation: self._handle_invite_to_location,
             UpdateUserName: self._handle_update_user_name,
             UpdateUserColor: self._handle_update_user_color,
+            DeleteGroup.Query: self._handle_delete_group,
+            DeleteProject.Query: self._handle_delete_project,
+            DeleteDatabase.Query: self._handle_delete_database,
         }
 
         # Add host and port as a prefix to our logger
@@ -343,6 +354,57 @@ class ServerClient(ClientSocket):
 
     def _handle_update_user_color(self, packet):
         self.parent().forward_users(self, packet)
+        
+    def _handle_delete_group(self,packet):
+        self._logger.debug("_handle_delete_group: dir(packet) = %s" % dir(packet))
+        def match_group(group_name,user):
+            return user.group == group_name
+        
+        projects = self.parent().storage.select_projects(packet.group_name)
+        for project in projects:
+            databases = self.parent().storage.select_databases(packet.group_name,project.name)
+            for db in databases:
+                file_name = "%s_%s_%s.idb" % (packet.group_name, project.name, db.name)
+                file_path = self.parent().server_file(file_name)
+                try:
+                    os.remove(file_path)
+                except FileNotFoundError:
+                    pass
+        self.parent().storage.delete_group(packet.group_name)
+        self.parent().forward_users(self,packet,partial(match_group,group_name=packet.group_name))
+        self.send_packet(DeleteGroup.Reply(packet))
+        
+    def _handle_delete_project(self,packet):
+        
+        def match_user(group_name, project_name, user):
+            return user.group == group_name and user.project == project_name
+
+        databases = self.parent().storage.select_databases(packet.group_name, packet.project_name)
+        for db in databases:
+            file_name = "%s_%s_%s.idb" % (packet.group_name, packet.project_name, db.name)
+            file_path = self.parent().server_file(file_name)
+            try:
+                os.remove(file_path)
+            except FileNotFoundError:
+                pass
+        
+        self.parent().storage.delete_project(packet.group_name, packet.project_name)
+        self.parent().forward_users(self,packet,partial(match_user, group_name=packet.group_name,project_name=packet.project_name))
+        self.send_packet(DeleteProject.Reply(packet))
+        
+    def _handle_delete_database(self, packet):
+        file_name = "%s_%s_%s.idb" % (packet.group_name, packet.project_name, packet.database_name)
+        file_path = self.parent().server_file(file_name)
+        try:
+            os.remove(file_path)
+        except FileNotFoundError:
+            pass
+        
+        self.parent().storage.delete_database(packet.group_name, packet.project_name, packet.database_name)
+        self.parent().forward_users(self,packet)
+        self.send_packet(DeleteDatabase.Reply(packet))
+    
+        
 
 
 class Server(ServerSocket):

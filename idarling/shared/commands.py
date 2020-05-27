@@ -106,6 +106,17 @@ class CreateGroup(ParentCommand):
         pass
 
 
+class DeleteGroup(ParentCommand):
+    __command__ = "delete_group"
+
+    class Query(IQuery, DefaultCommand):
+        def __init__(self, group_name):
+            super(DeleteGroup.Query, self).__init__()
+            self.group_name = group_name
+
+    class Reply(IReply, Command):
+        pass
+
 class CreateProject(ParentCommand):
     __command__ = "create_project"
 
@@ -119,6 +130,18 @@ class CreateProject(ParentCommand):
 
         def parse_command(self, dct):
             self.project = Project.new(dct["project"])
+
+    class Reply(IReply, Command):
+        pass
+    
+class DeleteProject(ParentCommand):
+    __command__ = "delete_project"
+
+    class Query(IQuery, DefaultCommand):
+        def __init__(self, group_name, project_name):
+            super(DeleteProject.Query, self).__init__()
+            self.group_name = group_name
+            self.project_name = project_name
 
     class Reply(IReply, Command):
         pass
@@ -141,6 +164,18 @@ class CreateDatabase(ParentCommand):
     class Reply(IReply, Command):
         pass
 
+class DeleteDatabase(ParentCommand):
+    __command__ = "delete_database"
+
+    class Query(IQuery, DefaultCommand):
+        def __init__(self, group_name, project_name, database_name):
+            super(DeleteDatabase.Query, self).__init__()
+            self.group_name = group_name
+            self.project_name = project_name
+            self.database_name = database_name
+
+    class Reply(IReply, Command):
+        pass
 
 class UpdateFile(ParentCommand):
     __command__ = "update_file"
