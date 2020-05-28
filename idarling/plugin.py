@@ -26,6 +26,8 @@ from .network.network import Network
 from .shared.utils import start_logging
 
 
+
+
 class Plugin(ida_idaapi.plugin_t):
     """
     This is the main class of the plugin. It subclasses plugin_t as required
@@ -85,12 +87,14 @@ class Plugin(ida_idaapi.plugin_t):
         """
         r, g, b = colorsys.hls_to_rgb(random.random(), 0.5, 1.0)
         color = int(b * 255) << 16 | int(g * 255) << 8 | int(r * 255)
+        file_path = Plugin.user_resource("files", "")
         return {
             "level": logging.INFO,
             "servers": [],
             "keep": {"cnt": 4, "intvl": 15, "idle": 240},
             "cursors": {"navbar": True, "funcs": True, "disasm": True},
             "user": {"color": color, "name": "unnamed", "notifications": True},
+            "files_dir": file_path,
         }
 
     def __init__(self):
@@ -134,6 +138,7 @@ class Plugin(ida_idaapi.plugin_t):
         This method is called when IDA is loading the plugin. It will first
         load the configuration file, then initialize all the modules.
         """
+
         try:
             self.load_config()
 

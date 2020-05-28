@@ -209,7 +209,7 @@ class OpenActionHandler(ActionHandler):
         app_name = QFileInfo(app_path).fileName()
         file_ext = "i64" if "64" in app_name else "idb"
         file_name = "%s_%s_%s.%s" % (group.name, database.project, database.name, file_ext)
-        file_path = self._plugin.user_resource("files", file_name)
+        file_path = os.path.join(self._plugin.config["files_dir"], file_name)
 
         # Write the file to disk
         decompressed_content = bz2.decompress(reply.content)
@@ -256,7 +256,7 @@ class OpenActionHandler(ActionHandler):
         shutil.copyfile(file_path, tmp_path)
 
         # This hook is used to delete the temporary database when all done
-        class UIHooks(ida_kernwin.UI_Hooks):
+        class TmpUIHooks(ida_kernwin.UI_Hooks):
             def database_inited(self, is_new_database, idc_script):
                 self.unhook()
 
@@ -264,7 +264,7 @@ class OpenActionHandler(ActionHandler):
                 if os.path.exists(tmp_path):
                     os.remove(tmp_path)
 
-        hooks = UIHooks()
+        hooks = TmpUIHooks()
         hooks.hook()
 
         # Call the restore_database_snapshot library function

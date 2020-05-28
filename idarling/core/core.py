@@ -19,10 +19,11 @@ import ida_diskio
 import ida_idp
 import ida_kernwin
 import ida_netnode
+import ida_typeinf
 
 from PyQt5.QtCore import QCoreApplication, QFileInfo  # noqa: I202
 
-from .hooks import HexRaysHooks, IDBHooks, IDPHooks
+from .hooks import HexRaysHooks, IDBHooks, IDPHooks, UIHooks
 from ..module import Module
 from ..shared.commands import (
     JoinSession,
@@ -30,6 +31,7 @@ from ..shared.commands import (
     ListDatabases,
     UpdateLocation,
 )
+from ..shared.local_types import ImportLocalType
 
 if sys.version_info > (3,):
     long = int
@@ -79,6 +81,9 @@ class Core(Module):
         self._view_hooks_core = None
         self._hooked = False
 
+        self.local_type_map = {}
+        self.delete_candidates = {}
+
     @property
     def group(self):
         return self._group
@@ -115,6 +120,11 @@ class Core(Module):
         self._tick = tick
         self.save_netnode()
 
+    def update_local_types_map(self):
+        for i in range(1, ida_typeinf.get_ordinal_qty(ida_typeinf.get_idati())):
+            t = ImportLocalType(i)
+            self.local_type_map[i] = t
+
     def add_user(self, name, user):
         self._users[name] = user
         self._plugin.interface.painter.refresh()
@@ -137,6 +147,7 @@ class Core(Module):
         self._idb_hooks = IDBHooks(self._plugin)
         self._idp_hooks = IDPHooks(self._plugin)
         self._hxe_hooks = HexRaysHooks(self._plugin)
+        self._ui_hooks = UIHooks(self._plugin)
 
         core = self
         self._plugin.logger.debug("Installing core hooks")
@@ -230,7 +241,9 @@ class Core(Module):
         self._idb_hooks.hook()
         self._idp_hooks.hook()
         self._hxe_hooks.hook()
+        self._ui_hooks.hook()
         self._hooked = True
+        self._plugin.core.update_local_types_map()
 
     def unhook_all(self):
         """Uninstall all the user events hooks."""
@@ -241,6 +254,7 @@ class Core(Module):
         self._idb_hooks.unhook()
         self._idp_hooks.unhook()
         self._hxe_hooks.unhook()
+        self._ui_hooks.unhook()
         self._hooked = False
 
     def load_netnode(self):

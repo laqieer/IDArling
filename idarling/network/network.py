@@ -19,6 +19,10 @@ from .server import IntegratedServer
 from ..module import Module
 from ..shared.discovery import ServersDiscovery
 
+fDebug = False
+if fDebug:
+    import pydevd_pycharm
+
 
 class Network(Module):
     """
@@ -65,6 +69,8 @@ class Network(Module):
         return True
 
     def connect(self, server):
+        if fDebug:
+            pydevd_pycharm.settrace('localhost', port=2233, stdoutToServer=True, stderrToServer=True, suspend=True)
         """Connect to the specified server."""
         # Make sure we're not already connected
         if self._client:
@@ -87,6 +93,9 @@ class Network(Module):
         # Wrap the socket in a SSL tunnel
         if not no_ssl:
             ctx = ssl.create_default_context()
+            # XXX - add SSL cert/hostname check or support both through setting
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
             sock = ctx.wrap_socket(
                 sock, server_hostname=host, do_handshake_on_connect=False
             )

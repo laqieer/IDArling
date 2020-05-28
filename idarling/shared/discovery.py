@@ -102,8 +102,8 @@ class ClientsDiscovery(QObject):
         """This function is called when a discovery reply is received."""
         response, address = self._socket.recvfrom(4096)
         response = response.decode("utf-8")
-        if response == DISCOVERY_REPLY:
-            self._logger.trace("Received discovery reply from %s:%d" % address)
+        # if response == DISCOVERY_REPLY:
+        #     self._logger.trace("Received discovery reply from %s:%d" % address)
 
 
 class ServersDiscovery(QObject):
@@ -162,9 +162,9 @@ class ServersDiscovery(QObject):
         request, address = self._socket.recvfrom(4096)
         request = request.decode("utf-8")
         if request.startswith(DISCOVERY_REQUEST):
-            self._logger.trace(
-                "Received discovery request from %s:%d" % address
-            )
+            # self._logger.trace(
+            #             #     "Received discovery request from %s:%d" % address
+            #             # )
             # Get the server information
             _, host, port, ssl = request.split()
             server = {"host": host, "port": int(port), "no_ssl": ssl != "True"}
@@ -174,7 +174,7 @@ class ServersDiscovery(QObject):
             # Append the new value
             self._servers.append((server, time.time()))
 
-            self._logger.trace("Sending discovery reply to %s:%d" % address)
+            #self._logger.trace("Sending discovery reply to %s:%d" % address)
             # Reply to the discovery request
             reply = DISCOVERY_REPLY
             reply = reply.encode("utf-8")
