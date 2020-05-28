@@ -310,7 +310,8 @@ class ClientSocket(QObject):
         """Callback called when a PacketEvent is received."""
         while self._incoming:
             packet = self._incoming.popleft()
-            self._logger.debug("Received packet: %s" % packet)
+            if not isinstance(packet, UpdateLocation):
+                self._logger.debug("Received packet: %s" % packet)
 
             # Notify for replies
             if isinstance(packet, Reply):
