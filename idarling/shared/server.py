@@ -375,28 +375,40 @@ class ServerClient(ClientSocket):
             pass
 
     def _handle_delete_group(self, packet):
-        def match_group(group_name,user):
+        def match_group(user, group_name):
             return user.group == group_name
 
-        self._delete_group_files(packet.group_name)
-        self.parent().storage.delete_group(packet.group_name)
-        self.parent().forward_users(self,packet,partial(match_group,group_name=packet.group_name))
-        self.send_packet(DeleteGroup.Reply(packet))
+        if  len(self.parent().get_users(self,partial(match_group, group_name=packet.group_name))):
+            self.send_packet(DeleteGroup.Reply(packet, False))
+        else:
+            self._delete_group_files(packet.group_name)
+            self.parent().storage.delete_group(packet.group_name)
+            # self.parent().forward_users(self,packet,partial(match_group,group_name=packet.group_name))
+            self.send_packet(DeleteGroup.Reply(packet, True))
 
     def _handle_delete_project(self,packet):
-        def match_user(group_name, project_name, user):
+        def match_user(user, group_name, project_name):
             return user.group == group_name and user.project == project_name
 
-        self._delete_project_files(packet.group_name, packet.project_name)
-        self.parent().storage.delete_project(packet.group_name, packet.project_name)
-        self.parent().forward_users(self,packet,partial(match_user, group_name=packet.group_name,project_name=packet.project_name))
-        self.send_packet(DeleteProject.Reply(packet))
+        if  len(self.parent().get_users(self, partial(match_user, group_name=packet.group_name, project_name=packet.project_name))):
+            self.send_packet(DeleteProject.Reply(packet, False))
+        else:
+            self._delete_project_files(packet.group_name, packet.project_name)
+            self.parent().storage.delete_project(packet.group_name, packet.project_name)
+            # self.parent().forward_users(self,packet,partial(match_user, group_name=packet.group_name,project_name=packet.project_name))
+            self.send_packet(DeleteProject.Reply(packet, True))
 
     def _handle_delete_database(self, packet):
-        self._delete_database_files(packet.group_name, packet.project_name, packet.database_name)
-        self.parent().storage.delete_database(packet.group_name, packet.project_name, packet.database_name)
-        self.parent().forward_users(self, packet)
-        self.send_packet(DeleteDatabase.Reply(packet))
+        def match_user(user, group_name, project_name, database_name):
+            return user.group == group_name and user.project == project_name and user.database == database_name
+
+        if len(self.parent().get_users(self,partial(match_user, group_name=packet.group_name, project_name=packet.project_name,database_name=packet.database_name))):
+            self.send_packet(DeleteDatabase.Reply(packet, False))
+        else:
+            self._delete_database_files(packet.group_name, packet.project_name, packet.database_name)
+            self.parent().storage.delete_database(packet.group_name, packet.project_name, packet.database_name)
+            # self.parent().forward_users(self, packet)
+            self.send_packet(DeleteDatabase.Reply(packet, True))
 
 
 class Server(ServerSocket):
@@ -522,9 +534,9 @@ class Server(ServerSocket):
         """Get the other users on the same database."""
         users = []
         for user in self._clients:
-            if (
-                user.project != client.project
-                or user.database != client.database
+            if (matches is None and
+                (user.project != client.project
+                or user.database != client.database)
             ):
                 continue
             if user == client or (matches and not matches(user)):

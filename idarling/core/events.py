@@ -106,15 +106,15 @@ class MakeCodeEvent(Event):
 class MakeDataEvent(Event):
     __event__ = "make_data"
 
-    def __init__(self, ea, flags, size, tid):
+    def __init__(self, ea, flags, size, sname):
         super(MakeDataEvent, self).__init__()
         self.ea = ea
         self.flags = flags
         self.size = size
-        self.tid = tid
+        self.sname = sname
 
     def __call__(self):
-        ida_bytes.create_data(self.ea, ida_bytes.calc_dflags(self.flags, True), self.size, self.tid)
+        ida_bytes.create_data(self.ea, ida_bytes.calc_dflags(self.flags, True), self.size, ida_struct.get_struc_id(self.sname) if self.sname else ida_idaapi.BADADDR)
 
 
 class RenamedEvent(Event):
@@ -130,7 +130,10 @@ class RenamedEvent(Event):
     def __call__(self):
         flags = ida_name.SN_LOCAL if self.local_name else 0
         if self.old_name:
-            self.ea = ida_struct.get_member_by_fullname(self.old_name).id
+            r = ida_struct.get_member_by_fullname(self.old_name) #if name like 'struct.member' the returning list. It's durty, need fix
+            if type(r) is list:
+                return
+            self.ea = r.id
         ida_name.set_name(
             self.ea, self.new_name, flags | ida_name.SN_NOWARN
         )
@@ -297,7 +300,12 @@ class TiChangedEvent(Event):
             py_type = py_type[1:]
         if len(py_type) >= 2:
             if self.name:
-                self.ea = ida_struct.get_member_by_fullname(self.name).id
+                r = ida_struct.get_member_by_fullname(self.name)
+                if type(r)is list:
+                    assert type(r[0]) is ida_struct.member_t
+                    self.ea = r[0].id
+                else:
+                    self.ea = r.id
             ida_typeinf.apply_type(
                 None,
                 GetTypeString(py_type[0]),
@@ -603,7 +611,7 @@ class StrucMemberCreatedEvent(Event):
     def __call__(self):
         mt = ida_nalt.opinfo_t()
         if ida_bytes.is_struct(self.flag):
-            mt.tid = self.extra["id"]
+            mt.tid = ida_struct.get_struc_id(self.extra["struc_name"])
         if ida_bytes.is_off0(self.flag) or ida_bytes.is_off1(self.flag):
             mt.ri = ida_nalt.refinfo_t()
             mt.ri.init(
@@ -640,7 +648,7 @@ class StrucMemberChangedEvent(Event):
     def __call__(self):
         mt = ida_nalt.opinfo_t()
         if ida_bytes.is_struct(self.flag):
-            mt.tid = self.extra["id"]
+            mt.tid = ida_struct.get_struc_id(self.extra["struc_name"])
         if ida_bytes.is_off0(self.flag) or ida_bytes.is_off1(self.flag):
             mt.ri = ida_nalt.refinfo_t()
             mt.ri.init(
