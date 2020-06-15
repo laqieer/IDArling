@@ -22,6 +22,7 @@ import ida_idaapi
 import ida_idp
 import ida_kernwin
 import ida_nalt
+import ida_netnode
 import ida_pro
 import ida_segment
 import ida_struct
@@ -527,15 +528,15 @@ class IDBHooks(Hooks, ida_idp.IDB_Hooks):
 
     def make_data(self, ea, flags, tid, size):
         self._plugin.logger.debug("make_data(ea = %x, flags = %x, tid = %x, size = %x)" % (ea, flags, tid, size))
-        self._send_packet(evt.MakeDataEvent(ea, flags, size, ida_struct.get_struc_name(tid) if tid != ida_idaapi.BADADDR else ''))
+        self._send_packet(evt.MakeDataEvent(ea, flags, size, ida_struct.get_struc_name(tid) if tid != ida_netnode.BADNODE else ''))
         return 0
 
     def renamed(self, ea, new_name, local_name):
-        old_name = ""
-        if ida_struct.is_member_id(ea) or ida_struct.get_struc_name(ea) or ida_enum.get_enum_name(ea):
+        self._plugin.logger.debug("renamed(ea = %x, new_name = %s, local_name = %d)" % (ea, new_name, local_name))
+        if ida_struct.is_member_id(ea) or ida_struct.get_struc(ea) or ida_enum.get_enum_name(ea):
             # old_name = ida_struct.get_struc_name(ea)
-            return 0 #drop hook for avoid  dublicate 'StrucRenamedEvent', 'EnumRenamedEvent' and 'StrucMemberRenamedEvent'
-        self._send_packet(evt.RenamedEvent(ea, new_name, old_name, local_name))
+            return 0 #drop hook for avoid  duplicate 'StrucRenamedEvent', 'EnumRenamedEvent' and 'StrucMemberRenamedEvent'
+        self._send_packet(evt.RenamedEvent(ea, new_name, local_name))
         return 0
 
     def byte_patched(self, ea, old_value):

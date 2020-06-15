@@ -23,6 +23,7 @@ import ida_kernwin
 import ida_lines
 import ida_nalt
 import ida_name
+import ida_netnode
 import ida_pro
 import ida_range
 import ida_segment
@@ -114,26 +115,20 @@ class MakeDataEvent(Event):
         self.sname = sname
 
     def __call__(self):
-        ida_bytes.create_data(self.ea, ida_bytes.calc_dflags(self.flags, True), self.size, ida_struct.get_struc_id(self.sname) if self.sname else ida_idaapi.BADADDR)
+        ida_bytes.create_data(self.ea, ida_bytes.calc_dflags(self.flags, True), self.size, ida_struct.get_struc_id(self.sname) if self.sname else ida_netnode.BADNODE)
 
 
 class RenamedEvent(Event):
     __event__ = "renamed"
 
-    def __init__(self, ea, new_name, old_name, local_name):
+    def __init__(self, ea, new_name, local_name):
         super(RenamedEvent, self).__init__()
         self.ea = ea
-        self.old_name = old_name
         self.new_name = new_name
         self.local_name = local_name
 
     def __call__(self):
         flags = ida_name.SN_LOCAL if self.local_name else 0
-        if self.old_name:
-            r = ida_struct.get_member_by_fullname(self.old_name) #if name like 'struct.member' the returning list. It's durty, need fix
-            if type(r) is list:
-                return
-            self.ea = r.id
         ida_name.set_name(
             self.ea, self.new_name, flags | ida_name.SN_NOWARN
         )
@@ -301,11 +296,8 @@ class TiChangedEvent(Event):
         if len(py_type) >= 2:
             if self.name:
                 r = ida_struct.get_member_by_fullname(self.name)
-                if type(r)is list:
-                    assert type(r[0]) is ida_struct.member_t
+                if r:
                     self.ea = r[0].id
-                else:
-                    self.ea = r.id
             ida_typeinf.apply_type(
                 None,
                 GetTypeString(py_type[0]),
