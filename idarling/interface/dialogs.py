@@ -248,11 +248,15 @@ class OpenDialog(QDialog):
         d.add_callback(partial(self._group_deleted, group))
         d.add_errback(self._plugin.logger.exception)
 
-    def _group_deleted(self, group, _):
-        for e in self._groups:
-            if e.name == group.name:
-                self._groups.remove(e)
-        self._refresh_groups()
+    def _group_deleted(self, group, reply):
+        if reply.deleted:
+            for e in self._groups:
+                if e.name == group.name:
+                    self._groups.remove(e)
+            self._refresh_groups()
+        else:
+            QMessageBox.about(self, "IDArling Error", "Unable to delete.\n"
+                                                      "Likely more than one client connected to target?")
 
     ##### PROJECTS #####
 
@@ -310,12 +314,16 @@ class OpenDialog(QDialog):
         d.add_callback(partial(self._project_deleted, project))
         d.add_errback(self._plugin.logger.exception)
 
-    def _project_deleted(self, project, _):
-        for e in self._projects:
-            if e.name == project.name:
-                self._projects.remove(e)
-        self._refresh_projects()
-        self._databases_table.clearContents()
+    def _project_deleted(self, project, reply):
+        if reply.deleted:
+            for e in self._projects:
+                if e.name == project.name:
+                    self._projects.remove(e)
+            self._refresh_projects()
+            self._databases_table.clearContents()
+        else:
+            QMessageBox.about(self, "IDArling Error", "Unable to delete.\n"
+                                                      "Likely more than one client connected to target?")
 
     def _rename_project_button_clicked(self, _):
         current_project = self._projects_table.selectedItems()[0].data(Qt.UserRole).name
@@ -389,11 +397,15 @@ class OpenDialog(QDialog):
         d.add_callback(partial(self._database_deleted, database))
         d.add_errback(self._plugin.logger.exception)
 
-    def _database_deleted(self, database, _):
-        for e in self._databases:
-            if e.name == database.name:
-                self._databases.remove(e)
-        self._refresh_databases()
+    def _database_deleted(self, database, reply):
+        if reply.deleted:
+            for e in self._databases:
+                if e.name == database.name:
+                    self._databases.remove(e)
+            self._refresh_databases()
+        else:
+            QMessageBox.about(self, "IDArling Error", "Unable to delete.\n"
+                                                      "Likely more than one client connected to target?")
 
     def _database_double_clicked(self):
         project_type = self._projects_table.selectedItems()[0].data(Qt.UserRole).type

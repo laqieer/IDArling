@@ -22,6 +22,7 @@ import ida_idaapi
 import ida_idp
 import ida_kernwin
 import ida_nalt
+import ida_netnode
 import ida_pro
 import ida_segment
 import ida_struct
@@ -78,7 +79,7 @@ class IDBHooks(Hooks, ida_idp.IDB_Hooks):
         # self._plugin.logger.trace(self._plugin.core.local_type_map)
         for i in range(1, ida_typeinf.get_ordinal_qty(ida_typeinf.get_idati())):
             t = ImportLocalType(i)
-            if t and t.name and ida_struct.get_struc_id(t.name) == ida_idaapi.BADADDR:
+            if t and t.name and ida_struct.get_struc_id(t.name) == ida_idaapi.BADADDR and ida_enum.get_enum(t.name) == ida_idaapi.BADADDR:
                 if i in self._plugin.core.local_type_map:
                     t_old = self._plugin.core.local_type_map[i]
                     if t_old and not t.isEqual(t_old):
@@ -167,11 +168,12 @@ class IDBHooks(Hooks, ida_idp.IDB_Hooks):
         # return 0
 
     def ti_changed(self, ea, type, fname):
+        self._plugin.logger.debug("ti_changed(ea = 0x%X, type = %s, fname = %s)" % (ea, type, fname))
         name = ""
         if ida_struct.is_member_id(ea):
             name = ida_struct.get_struc_name(ea)
         type = ida_typeinf.idc_get_type_raw(ea)
-        self._send_packet(evt.TiChangedEvent(ea, (ParseTypeString(type[0]), type[1]), name))
+        self._send_packet(evt.TiChangedEvent(ea, (ParseTypeString(type[0]) if type else [], type[1] if type else None), name))
         return 0
 
     def op_ti_changed(self, ea, n, type, fnames):
@@ -341,7 +343,7 @@ class IDBHooks(Hooks, ida_idp.IDB_Hooks):
                     )
                 )
             elif flag & ida_bytes.stru_flag():
-                extra["id"] = mt.tid
+                extra["struc_name"] = ida_struct.get_struc_name(mt.tid)
                 if flag & ida_bytes.strlit_flag():
                     extra["strtype"] = mt.strtype
                 self._send_packet(
@@ -396,7 +398,7 @@ class IDBHooks(Hooks, ida_idp.IDB_Hooks):
                     )
                 )
             elif flag & ida_bytes.stru_flag():
-                extra["id"] = mt.tid
+                extra["struc_name"] = ida_struct.get_struc_name(mt.tid)
                 if flag & ida_bytes.strlit_flag():
                     extra["strtype"] = mt.strtype
                 self._send_packet(
@@ -525,16 +527,20 @@ class IDBHooks(Hooks, ida_idp.IDB_Hooks):
     #     return 0
 
     def make_data(self, ea, flags, tid, size):
-        # TODO: tid --> struct name
         self._plugin.logger.debug("make_data(ea = %x, flags = %x, tid = %x, size = %x)" % (ea, flags, tid, size))
-        self._send_packet(evt.MakeDataEvent(ea, flags, size, tid))
+        # Note: MakeDataEvent.sname == '' is convention for BADNODE
+        self._send_packet(evt.MakeDataEvent(ea, flags, size, ida_struct.get_struc_name(tid) if tid != ida_netnode.BADNODE else ''))
         return 0
 
     def renamed(self, ea, new_name, local_name):
-        old_name = ""
-        if ida_struct.is_member_id(ea):
-            old_name = ida_struct.get_struc_name(ea)
-        self._send_packet(evt.RenamedEvent(ea, new_name, old_name, local_name))
+        self._plugin.logger.debug("renamed(ea = %x, new_name = %s, local_name = %d)" % (ea, new_name, local_name))
+        if ida_struct.is_member_id(ea) or ida_struct.get_struc(ea) or ida_enum.get_enum_name(ea):
+            # Drop hook to avoid duplicate since already handled by the following hooks:
+            # - renaming_struc_member() -> sends 'StrucMemberRenamedEvent'
+            # - renaming_struc() -> sends 'StrucRenamedEvent' 
+            # - renaming_enum() -> sends 'EnumRenamedEvent' 
+            return 0 
+        self._send_packet(evt.RenamedEvent(ea, new_name, local_name))
         return 0
 
     def byte_patched(self, ea, old_value):

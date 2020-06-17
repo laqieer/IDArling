@@ -114,8 +114,10 @@ class DeleteGroup(ParentCommand):
             super(DeleteGroup.Query, self).__init__()
             self.group_name = group_name
 
-    class Reply(IReply, Command):
-        pass
+    class Reply(IReply, DefaultCommand):
+        def __init__(self, query, deleted):
+            super(DeleteGroup.Reply, self).__init__(query)
+            self.deleted = deleted
 
 class CreateProject(ParentCommand):
     __command__ = "create_project"
@@ -143,8 +145,10 @@ class DeleteProject(ParentCommand):
             self.group_name = group_name
             self.project_name = project_name
 
-    class Reply(IReply, Command):
-        pass
+    class Reply(IReply, DefaultCommand):
+        def __init__(self, query, deleted):
+            super(DeleteProject.Reply, self).__init__(query)
+            self.deleted = deleted
 
 
 class CreateDatabase(ParentCommand):
@@ -174,8 +178,10 @@ class DeleteDatabase(ParentCommand):
             self.project_name = project_name
             self.database_name = database_name
 
-    class Reply(IReply, Command):
-        pass
+    class Reply(IReply, DefaultCommand):
+        def __init__(self, query, deleted):
+            super(DeleteDatabase.Reply, self).__init__(query)
+            self.deleted = deleted
 
 class UpdateFile(ParentCommand):
     __command__ = "update_file"
