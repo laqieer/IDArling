@@ -222,6 +222,7 @@ Thanks to Quarkslab for allowing this release.
 * Joffrey Guilbon <<patate@idarling.re>>
 * Cedric Halbronn ([@saidelike](https://twitter.com/saidelike))
 * Aaron Adams ([@FidgetingBits](https://twitter.com/fidgetingbits))
+* rigmar
 
 If you have any questions not worthy of a bug report, feel free to ping us at
 [#idarling on freenode](https://kiwiirc.com/client/irc.freenode.net/idarling)
