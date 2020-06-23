@@ -109,7 +109,7 @@ class OpenDialog(QDialog):
         self._middle_side = QWidget(main)
         self._middle_layout = QVBoxLayout(self._middle_side)
         self._binaries_table = QTableWidget(0, 1, self._middle_side)
-        self._binaries_table.setHorizontalHeaderLabels(("Binaries",))
+        self._binaries_table.setHorizontalHeaderLabels(("Binary Files",))
         self._binaries_table.horizontalHeader().setSectionsClickable(False)
         self._binaries_table.horizontalHeader().setStretchLastSection(True)
         self._binaries_table.verticalHeader().setVisible(False)
@@ -123,13 +123,13 @@ class OpenDialog(QDialog):
         main_layout.setColumnStretch(1, 1)
 
         # Create a binary button
-        self._rename_binary_button = QPushButton("Rename Binary", self._middle_side)
+        self._rename_binary_button = QPushButton("Rename Binary File", self._middle_side)
         self._rename_binary_button.setEnabled(False)
         self._rename_binary_button.clicked.connect(self._rename_binary_button_clicked)
         self._middle_layout.addWidget(self._rename_binary_button)
 
         self._delete_binary_button = QPushButton(
-            "Delete Binary", self._middle_side
+            "Delete Binary File", self._middle_side
         )
         self._delete_binary_button.setEnabled(False)
         self._delete_binary_button.clicked.connect(
@@ -157,7 +157,7 @@ class OpenDialog(QDialog):
         main_layout.setColumnStretch(2, 2)
 
         # Snapshots table
-        self._snapshots_project = QGroupBox("Snapshots", right_side)
+        self._snapshots_project = QGroupBox("Database Snapshots", right_side)
         self._snapshots_layout = QVBoxLayout(self._snapshots_project)
         self._snapshots_table = QTableWidget(0, 3, self._snapshots_project)
         labels = ("Name", "Date", "Ticks")
@@ -177,7 +177,7 @@ class OpenDialog(QDialog):
         self._snapshots_layout.addWidget(self._snapshots_table)
 
         self._delete_snapshot_button = QPushButton(
-            "Delete Snapshot", self._snapshots_project
+            "Delete Database Snapshot", self._snapshots_project
         )
         self._delete_snapshot_button.setEnabled(False)
         self._delete_snapshot_button.clicked.connect(
@@ -467,7 +467,7 @@ class SaveDialog(OpenDialog):
 
         # Add a button to create a binary
         self._create_binary_button = QPushButton(
-            "Create Binary", self._middle_side
+            "Create Binary File", self._middle_side
         )
         self._create_binary_button.setEnabled(False)
         self._create_binary_button.clicked.connect(
@@ -477,7 +477,7 @@ class SaveDialog(OpenDialog):
 
         # Add a button to create a snapshot
         self._create_snapshot_button = QPushButton(
-            "Create Snapshot", self._snapshots_project
+            "Create Database Snapshot", self._snapshots_project
         )
         self._create_snapshot_button.setEnabled(False)
         self._create_snapshot_button.clicked.connect(
@@ -711,7 +711,7 @@ class CreateBinaryDialog(CreateProjectDialog):
     def __init__(self, plugin):
         super(CreateBinaryDialog, self).__init__(plugin)
         #self._plugin.logger.debug("Create binary dialog")
-        self.setWindowTitle("Create Binary")
+        self.setWindowTitle("Create Binary File")
         self._nameLabel.setText("<b>Binary Name</b>")
 
 
@@ -724,7 +724,7 @@ class CreateSnapshotDialog(CreateProjectDialog):
     def __init__(self, plugin):
         super(CreateSnapshotDialog, self).__init__(plugin)
         #self._plugin.logger.debug("Create snapshot dialog")
-        self.setWindowTitle("Create Snapshot")
+        self.setWindowTitle("Create Database Snapshot")
         self._nameLabel.setText("<b>Snapshot Name</b>")
 
 
