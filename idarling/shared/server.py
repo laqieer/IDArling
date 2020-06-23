@@ -414,6 +414,7 @@ class ServerClient(ClientSocket):
 
 class Migrate(object):
 
+    # This migration typically took ~2h with a database with 140k+ events
     def do1(server):
         server._logger.warning("Migration do1(), please don't interrupt that process...")
 
