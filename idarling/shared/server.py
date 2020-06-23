@@ -16,6 +16,7 @@ import socket
 import ssl
 import threading
 import bz2
+import json
 from functools import partial
 
 from .commands import (
@@ -419,7 +420,7 @@ class Server(ServerSocket):
 
     SNAPSHOT_INTERVAL = 0  # ticks
 
-    def __init__(self, logger, parent=None):
+    def __init__(self, logger, parent=None, level=None):
         ServerSocket.__init__(self, logger, parent)
         self._ssl = None
         self._clients = []
@@ -428,12 +429,30 @@ class Server(ServerSocket):
         self._storage = Storage(self.server_file("database.db"))
         self._storage.initialize()
 
+        # Load the configuration
+        self._config_path = self.server_file("config_server.json")
+        self._config = self.default_config()
+        self.load_config()
+        if level != None:
+            self._logger.setLevel(level)
+        else:
+            self._logger.setLevel(self._config["level"])
+        self.save_config()
+
         self._discovery = ClientsDiscovery(logger)
         # A temporory lock to stop clients while updating other locks
         self.client_lock = threading.Lock()
         # A long term lock that stops breaking database updates when multiple
         # clients are connected
         self.db_update_lock = threading.Lock()
+
+    @property
+    def config_path(self):
+        return self._config_path
+
+    @property
+    def config(self):
+        return self._config
 
     @property
     def storage(self):
@@ -446,6 +465,38 @@ class Server(ServerSocket):
     @property
     def port(self):
         return self._socket.getsockname()[1]
+
+    @staticmethod
+    def default_config():
+        """
+        Return the default configuration options. This is used to initialize
+        the configuration file the first time the server is started
+        """
+        return {
+            "level": logging.INFO,
+        }
+
+    def load_config(self):
+        """
+        Load the configuration file. It is a JSON file that contains all the
+        settings of the server.
+        """
+        if not os.path.isfile(self.config_path):
+            return
+        with open(self.config_path, "rb") as config_file:
+            try:
+                self._config.update(json.loads(config_file.read()))
+            except ValueError:
+                self._logger.warning("Couldn't load config file")
+                return
+            self._logger.debug("Loaded config: %s" % self._config)
+
+    def save_config(self):
+        """Save the configuration file."""
+        self._config["level"] = self._logger.level
+        with open(self.config_path, "w") as config_file:
+            config_file.write(json.dumps(self._config))
+            self._logger.debug("Saved config: %s" % self._config)
 
     def start(self, host, port=0, ssl_=None):
         """Starts the server on the specified host and port."""

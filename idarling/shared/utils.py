@@ -36,9 +36,10 @@ def start_logging(log_path, log_name, level):
     )
 
     logger = logging.getLogger(log_name)
-    if not isinstance(level, int):
-        level = getattr(logging, level)
-    logger.setLevel(level)
+    if level != None:
+        if not isinstance(level, int):
+            level = getattr(logging, level)
+        logger.setLevel(level)
 
     # Log to the console with a first format
     logger.propagate = False # avoid having 2 log lines

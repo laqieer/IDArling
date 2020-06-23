@@ -38,7 +38,7 @@ class DedicatedServer(Server):
         log_path = os.path.join(log_dir, "idarling.%s.log" % os.getpid())
 
         logger = start_logging(log_path, "IDArling.Server", level)
-        Server.__init__(self, logger, parent)
+        Server.__init__(self, logger, parent, level)
 
     def server_file(self, filename):
         """
@@ -126,7 +126,7 @@ def main():
         "--level",
         type=str,
         choices=levels,
-        default="INFO",
+        default=None,
         help="the log level",
     )
 
