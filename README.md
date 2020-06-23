@@ -4,7 +4,7 @@
   - [Installation](#installation)
     - [Server-side](#server-side)
     - [Client-side](#client-side)
-    - [Dedicated server](#dedicated-server)
+    - [Integrated server](#integrated-server)
   - [Connection to server and usage](#connection-to-server-and-usage)
   - [Features](#features)
     - [General features](#general-features)
