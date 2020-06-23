@@ -62,9 +62,9 @@ class Binary(Model):
     snapshot creation.
     """
 
-    def __init__(self, project_name, name, hash, file, type, date):
+    def __init__(self, project, name, hash, file, type, date):
         super(Binary, self).__init__()
-        self.project_name = project_name
+        self.project = project
         self.name = name
         self.hash = hash
         self.file = file
@@ -79,9 +79,9 @@ class Snapshot(Model):
     current tick (events) count.
     """
 
-    def __init__(self, project_name, binary, name, date, tick=0):
+    def __init__(self, project, binary, name, date, tick=0):
         super(Snapshot, self).__init__()
-        self.project_name = project_name
+        self.project = project
         self.binary = binary
         self.name = name
         self.date = date

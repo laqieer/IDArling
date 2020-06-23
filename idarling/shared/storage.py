@@ -105,21 +105,21 @@ class Storage(object):
     def select_binaries(self, project=None, name=None, limit=None):
         """Select the binaries with the given project and name."""
         results = self._select(
-            "binaries", {"project_name": project, "name": name}, limit
+            "binaries", {"project": project, "name": name}, limit
         )
         return [Binary(**result) for result in results]
 
     def update_binary_name(self, project=None, old_name=None, new_name=None, limit=None):
         """Update a binary with the given new name."""
-        self._update("binaries", "name", new_name, {"project_name": project, "name": old_name}, limit)
+        self._update("binaries", "name", new_name, {"project": project, "name": old_name}, limit)
 
     def update_snapshot_binary(self, project=None, old_name=None, new_name=None, limit=None):
         """Update a binary with the given new name."""
-        self._update("snapshots", "binary", new_name, {"project_name": project, "binary": old_name}, limit)
+        self._update("snapshots", "binary", new_name, {"project": project, "binary": old_name}, limit)
 
     def update_events_binary(self, project=None, old_name=None, new_name=None, limit=None):
         """Update a binary with the given new name."""
-        self._update("events", "binary", new_name, {"project_name": project, "binary": old_name}, limit)
+        self._update("events", "binary", new_name, {"project": project, "binary": old_name}, limit)
 
     def insert_snapshot(self, snapshot):
         """Insert a new snapshot into the database."""
@@ -135,7 +135,7 @@ class Storage(object):
     def select_snapshots(self, project=None, binary=None, name=None, limit=None):
         """Select the snapshots with the given binary and name."""
         results = self._select(
-            "snapshots", {"project_name": project, "binary": binary, "name": name}, limit
+            "snapshots", {"project": project, "binary": binary, "name": name}, limit
         )
         return [Snapshot(**result) for result in results]
 
@@ -145,7 +145,7 @@ class Storage(object):
         self._insert(
             "events",
             {
-                "project_name": client.project,
+                "project": client.project,
                 "binary": client.binary,
                 "snapshot": client.snapshot,
                 "tick": event.tick,
@@ -156,7 +156,7 @@ class Storage(object):
     def select_events(self, project, binary, snapshot, tick):
         """Get all events sent after the given tick count."""
         c = self._conn.cursor()
-        sql = "select * from events where project_name = ? and binary = ? and snapshot = ?"
+        sql = "select * from events where project = ? and binary = ? and snapshot = ?"
         sql += "and tick > ? order by tick asc;"
         c.execute(sql, [project, binary, snapshot, tick])
         events = []
@@ -169,28 +169,28 @@ class Storage(object):
     def last_tick(self, project, binary, snapshot):
         """Get the last tick of the specified binary and snapshot."""
         c = self._conn.cursor()
-        sql = "select tick from events where project_name = ? and binary = ? and snapshot = ? "
+        sql = "select tick from events where project = ? and binary = ? and snapshot = ? "
         sql += "order by tick desc limit 1;"
         c.execute(sql, [project, binary, snapshot])
         result = c.fetchone()
         return result["tick"] if result else 0
 
     def delete_events(self, project, binary, snapshot):
-        self._delete("events", {"project_name": project, "binary": binary, "snapshot": snapshot})
+        self._delete("events", {"project": project, "binary": binary, "snapshot": snapshot})
 
     def delete_snapshot(self, project, binary, snapshot):
         self.delete_events(project, binary, snapshot)
-        self._delete("snapshots", {"project_name": project, "binary": binary, "name": snapshot})
+        self._delete("snapshots", {"project": project, "binary": binary, "name": snapshot})
 
     def delete_binary(self, project, binary):
-        self._delete("events", {"project_name": project, "binary": binary})
-        self._delete("snapshots", {"project_name": project, "binary": binary})
-        self._delete("binaries", {"project_name": project, "name": binary})
+        self._delete("events", {"project": project, "binary": binary})
+        self._delete("snapshots", {"project": project, "binary": binary})
+        self._delete("binaries", {"project": project, "name": binary})
 
     def delete_project(self, project):
-        self._delete("events", {"project_name": project})
-        self._delete("snapshots", {"project_name": project})
-        self._delete("binaries", {"project_name": project})
+        self._delete("events", {"project": project})
+        self._delete("snapshots", {"project": project})
+        self._delete("binaries", {"project": project})
         self._delete("projects", {"name": project})
 
     def _create(self, table, cols):

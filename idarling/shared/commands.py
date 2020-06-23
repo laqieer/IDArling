@@ -110,9 +110,9 @@ class DeleteProject(ParentCommand):
     __command__ = "delete_project"
 
     class Query(IQuery, DefaultCommand):
-        def __init__(self, project_name):
+        def __init__(self, project):
             super(DeleteProject.Query, self).__init__()
-            self.project_name = project_name
+            self.project = project
 
     class Reply(IReply, DefaultCommand):
         def __init__(self, query, deleted):
@@ -140,10 +140,10 @@ class DeleteBinary(ParentCommand):
     __command__ = "delete_binary"
 
     class Query(IQuery, DefaultCommand):
-        def __init__(self, project_name, binary_name):
+        def __init__(self, project, binary):
             super(DeleteBinary.Query, self).__init__()
-            self.project_name = project_name
-            self.binary_name = binary_name
+            self.project = project
+            self.binary = binary
 
     class Reply(IReply, DefaultCommand):
         def __init__(self, query, deleted):
@@ -172,11 +172,11 @@ class DeleteSnapshot(ParentCommand):
     __command__ = "delete_snapshot"
 
     class Query(IQuery, DefaultCommand):
-        def __init__(self, project_name, binary_name, snapshot_name):
+        def __init__(self, project, binary, snapshot):
             super(DeleteSnapshot.Query, self).__init__()
-            self.project_name = project_name
-            self.binary_name = binary_name
-            self.snapshot_name = snapshot_name
+            self.project = project
+            self.binary = binary
+            self.snapshot = snapshot
 
     class Reply(IReply, DefaultCommand):
         def __init__(self, query, deleted):

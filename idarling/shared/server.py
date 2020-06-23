@@ -240,7 +240,7 @@ class ServerClient(ClientSocket):
         self._logger.info("Got list snapshots request")
         snapshots = self.parent().storage.select_snapshots(query.project, query.binary)
         for snapshot in snapshots:
-            snapshot_info = snapshot.project_name, snapshot.binary, snapshot.name
+            snapshot_info = snapshot.project, snapshot.binary, snapshot.name
             file_name = "%s_%s_%s.idb" % (snapshot_info)
             file_path = self.parent().server_file(file_name)
             if os.path.isfile(file_path):
@@ -358,18 +358,18 @@ class ServerClient(ClientSocket):
     def _handle_update_user_color(self, packet):
         self.parent().forward_users(self, packet)
 
-    def _delete_project_files(self, project_name):
-        binaries = self.parent().storage.select_binaries(project_name)
+    def _delete_project_files(self, project):
+        binaries = self.parent().storage.select_binaries(project)
         for binary in binaries:
-            self._delete_binary_files(project_name, binary.name)
+            self._delete_binary_files(project, binary.name)
 
-    def _delete_binary_files(self, project_name, binary_name):
-        snapshots = self.parent().storage.select_snapshots(project_name, binary_name)
+    def _delete_binary_files(self, project, binary):
+        snapshots = self.parent().storage.select_snapshots(project, binary)
         for db in snapshots:
-            self._delete_snapshot_files(project_name, binary_name, db.name)
+            self._delete_snapshot_files(project, binary, db.name)
 
-    def _delete_snapshot_files(self, project_name, binary_name, snapshot_name):
-        file_name = "%s_%s_%s.idb" % (project_name, binary_name, snapshot_name)
+    def _delete_snapshot_files(self, project, binary, snapshot):
+        file_name = "%s_%s_%s.idb" % (project, binary, snapshot)
         file_path = self.parent().server_file(file_name)
         try:
             os.remove(file_path)
@@ -377,38 +377,38 @@ class ServerClient(ClientSocket):
             pass
 
     def _handle_delete_project(self, packet):
-        def match_project(user, project_name):
-            return user.project == project_name
+        def match_project(user, project):
+            return user.project == project
 
-        if  len(self.parent().get_users(self,partial(match_project, project_name=packet.project_name))):
+        if  len(self.parent().get_users(self,partial(match_project, project=packet.project))):
             self.send_packet(DeleteProject.Reply(packet, False))
         else:
-            self._delete_project_files(packet.project_name)
-            self.parent().storage.delete_project(packet.project_name)
-            # self.parent().forward_users(self,packet,partial(match_project,project_name=packet.project_name))
+            self._delete_project_files(packet.project)
+            self.parent().storage.delete_project(packet.project)
+            # self.parent().forward_users(self,packet,partial(match_project,project=packet.project))
             self.send_packet(DeleteProject.Reply(packet, True))
 
     def _handle_delete_binary(self,packet):
-        def match_user(user, project_name, binary_name):
-            return user.project == project_name and user.binary == binary_name
+        def match_user(user, project, binary):
+            return user.project == project and user.binary == binary
 
-        if  len(self.parent().get_users(self, partial(match_user, project_name=packet.project_name, binary_name=packet.binary_name))):
+        if  len(self.parent().get_users(self, partial(match_user, project=packet.project, binary=packet.binary))):
             self.send_packet(DeleteBinary.Reply(packet, False))
         else:
-            self._delete_binary_files(packet.project_name, packet.binary_name)
-            self.parent().storage.delete_binary(packet.project_name, packet.binary_name)
-            # self.parent().forward_users(self,packet,partial(match_user, project_name=packet.project_name,binary_name=packet.binary_name))
+            self._delete_binary_files(packet.project, packet.binary)
+            self.parent().storage.delete_binary(packet.project, packet.binary)
+            # self.parent().forward_users(self,packet,partial(match_user, project=packet.project,binary=packet.binary))
             self.send_packet(DeleteBinary.Reply(packet, True))
 
     def _handle_delete_snapshot(self, packet):
-        def match_user(user, project_name, binary_name, snapshot_name):
-            return user.project == project_name and user.binary == binary_name and user.snapshot == snapshot_name
+        def match_user(user, project, binary, snapshot):
+            return user.project == project and user.binary == binary and user.snapshot == snapshot
 
-        if len(self.parent().get_users(self,partial(match_user, project_name=packet.project_name, binary_name=packet.binary_name,snapshot_name=packet.snapshot_name))):
+        if len(self.parent().get_users(self,partial(match_user, project=packet.project, binary=packet.binary,snapshot=packet.snapshot))):
             self.send_packet(DeleteSnapshot.Reply(packet, False))
         else:
-            self._delete_snapshot_files(packet.project_name, packet.binary_name, packet.snapshot_name)
-            self.parent().storage.delete_snapshot(packet.project_name, packet.binary_name, packet.snapshot_name)
+            self._delete_snapshot_files(packet.project, packet.binary, packet.snapshot)
+            self.parent().storage.delete_snapshot(packet.project, packet.binary, packet.snapshot)
             # self.parent().forward_users(self, packet)
             self.send_packet(DeleteSnapshot.Reply(packet, True))
 

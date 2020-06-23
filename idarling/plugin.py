@@ -37,7 +37,7 @@ class Plugin(ida_idaapi.plugin_t):
 
     # Mandatory definitions
     PLUGIN_NAME = "IDArling"
-    PLUGIN_VERSION = "0.0.2"
+    PLUGIN_VERSION = "0.0.3"
     PLUGIN_AUTHORS = "The IDArling Team"
 
     # These flags specify that the plugin should persist between databases
