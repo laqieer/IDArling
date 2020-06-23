@@ -415,16 +415,16 @@ class ServerClient(ClientSocket):
 class Migrate(object):
 
     def do1(server):
-        server._logger.warning("Migration do0(), please don't interrupt that process...")
+        server._logger.warning("Migration do1(), please don't interrupt that process...")
 
-        server._logger.warning("Migration do0(): saving old db...")
-        if os.path.exists(server.server_file("database_0.db")):
-            server._logger.error("Migration do0(): database_0.db already exist!")
+        server._logger.warning("Migration do1(): saving old db...")
+        if os.path.exists(server.server_file("database_1.db")):
+            server._logger.error("Migration do1(): database_1.db already exist!")
             sys.exit(1)
-        os.rename(server.server_file("database.db"), server.server_file("database_0.db"))
+        os.rename(server.server_file("database.db"), server.server_file("database_1.db"))
 
-        server._logger.warning("Migration do0(): loading old db...")
-        old_storage = Storage(server.server_file("database_0.db"))
+        server._logger.warning("Migration do1(): loading old db...")
+        old_storage = Storage(server.server_file("database_1.db"))
         old_level1_rows = old_storage._select_all("groups")
         old_level2_rows = old_storage._select_all("projects")
         old_level3_rows = old_storage._select_all("databases")
@@ -433,17 +433,17 @@ class Migrate(object):
         new_storage = Storage(server.server_file("database.db"))
         new_storage.initialize()
 
-        server._logger.warning("Migration do0(): inserting projects...")
+        server._logger.warning("Migration do1(): inserting projects...")
         new_storage._insert_all("projects", old_level1_rows)
 
-        server._logger.warning("Migration do0(): inserting binaries...")
+        server._logger.warning("Migration do1(): inserting binaries...")
         new_level2_rows = []
         for row in old_level2_rows:
             row["project"] = row.pop("group_name")
             new_level2_rows.append(row)
         new_storage._insert_all("binaries", new_level2_rows)
 
-        server._logger.warning("Migration do0(): inserting snapshots...")
+        server._logger.warning("Migration do1(): inserting snapshots...")
         new_level3_rows = []
         for row in old_level3_rows:
             row["binary"] = row.pop("project")
@@ -451,18 +451,18 @@ class Migrate(object):
             new_level3_rows.append(row)
         new_storage._insert_all("snapshots", new_level3_rows)
 
-        server._logger.warning("Migration do0(): inserting events...")
+        server._logger.warning("Migration do1(): inserting events...")
         i = 0
         for row in old_events_rows:
             if i % 1000 == 0:
-                server._logger.warning("Migration do0(): %d events done..." % i)
+                server._logger.warning("Migration do1(): %d events done..." % i)
             row["snapshot"] = row.pop("database")
             row["binary"] = row.pop("project")
             row["project"] = row.pop("group_name")
             new_storage._insert("events", row)
             i += 1
 
-        server._logger.warning("Migration do0(): done")
+        server._logger.warning("Migration do1(): done")
 
 class Server(ServerSocket):
     """
