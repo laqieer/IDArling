@@ -31,7 +31,7 @@ class Storage(object):
     def initialize(self):
         """Create all the default tables."""
         self._create(
-            "groups",
+            "projects",
             [
                 "name text not null",
                 "date text not null",
@@ -39,43 +39,43 @@ class Storage(object):
             ],
         )
         self._create(
-            "projects",
+            "binaries",
             [
-                "group_name text not null",
+                "project text not null",
                 "name text not null",
                 "hash text not null",
                 "file text not null",
                 "type text not null",
                 "date text not null",
-                "foreign key(group_name) references groups(name)",
-                "primary key (group_name, name)",
+                "foreign key(project) references projects(name)",
+                "primary key (project, name)",
             ],
         )
         self._create(
-            "databases",
+            "snapshots",
             [
-                "group_name text not null",
                 "project text not null",
+                "binary text not null",
                 "name text not null",
                 "date text not null",
-                "foreign key(group_name) references groups(name)",
-                "foreign key(group_name, project) references projects(group_name, name)",
-                "primary key(group_name, project, name)",
+                "foreign key(project) references projects(name)",
+                "foreign key(project, binary) references binaries(project, name)",
+                "primary key(project, binary, name)",
             ],
         )
         self._create(
             "events",
             [
-                "group_name text not null",
                 "project text not null",
-                "database text not null",
+                "binary text not null",
+                "snapshot text not null",
                 "tick integer not null",
                 "dict text not null",
-                "foreign key(group_name) references groups(name)",
-                "foreign key(group_name, project) references projects(group_name, name)",
-                "foreign key(group_name, project, database)"
-                "     references databases(group_name, project, name)",
-                "primary key(group_name, project, database, tick)",
+                "foreign key(project) references projects(name)",
+                "foreign key(project, binary) references binaries(project, name)",
+                "foreign key(project, binary, snapshot)"
+                "     references snapshots(project, binary, name)",
+                "primary key(project, binary, snapshot, tick)",
             ],
         )
 
@@ -199,6 +199,13 @@ class Storage(object):
         sql = "create table if not exists {} ({});"
         c.execute(sql.format(table, ", ".join(cols)))
 
+    def _select_all(self, table):
+        """Select all the rows of a table."""
+        c = self._conn.cursor()
+        sql = "select * from {}".format(table)
+        c.execute(sql)
+        return [dict(row) for row in c.fetchall()]
+
     def _select(self, table, fields, limit=None):
         """Select the rows of a table matching the given values."""
         c = self._conn.cursor()
@@ -237,6 +244,10 @@ class Storage(object):
         #print(conditions)
         c.execute(sql, conditions)
         return c.fetchall()
+
+    def _insert_all(self, table, rows):
+        for fields in rows:
+            self._insert(table, fields)
 
     def _insert(self, table, fields):
         """Insert a row into a table with the given values."""

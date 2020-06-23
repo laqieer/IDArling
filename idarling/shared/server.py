@@ -12,6 +12,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 import logging
 import os
+import sys
 import socket
 import ssl
 import threading
@@ -411,6 +412,57 @@ class ServerClient(ClientSocket):
             # self.parent().forward_users(self, packet)
             self.send_packet(DeleteDatabase.Reply(packet, True))
 
+class Migrate(object):
+
+    def do1(server):
+        server._logger.warning("Migration do0(), please don't interrupt that process...")
+
+        server._logger.warning("Migration do0(): saving old db...")
+        if os.path.exists(server.server_file("database_0.db")):
+            server._logger.error("Migration do0(): database_0.db already exist!")
+            sys.exit(1)
+        os.rename(server.server_file("database.db"), server.server_file("database_0.db"))
+
+        server._logger.warning("Migration do0(): loading old db...")
+        old_storage = Storage(server.server_file("database_0.db"))
+        old_level1_rows = old_storage._select_all("groups")
+        old_level2_rows = old_storage._select_all("projects")
+        old_level3_rows = old_storage._select_all("databases")
+        old_events_rows = old_storage._select_all("events")
+
+        new_storage = Storage(server.server_file("database.db"))
+        new_storage.initialize()
+
+        server._logger.warning("Migration do0(): inserting projects...")
+        new_storage._insert_all("projects", old_level1_rows)
+
+        server._logger.warning("Migration do0(): inserting binaries...")
+        new_level2_rows = []
+        for row in old_level2_rows:
+            row["project"] = row.pop("group_name")
+            new_level2_rows.append(row)
+        new_storage._insert_all("binaries", new_level2_rows)
+
+        server._logger.warning("Migration do0(): inserting snapshots...")
+        new_level3_rows = []
+        for row in old_level3_rows:
+            row["binary"] = row.pop("project")
+            row["project"] = row.pop("group_name")
+            new_level3_rows.append(row)
+        new_storage._insert_all("snapshots", new_level3_rows)
+
+        server._logger.warning("Migration do0(): inserting events...")
+        i = 0
+        for row in old_events_rows:
+            if i % 1000 == 0:
+                server._logger.warning("Migration do0(): %d events done..." % i)
+            row["snapshot"] = row.pop("database")
+            row["binary"] = row.pop("project")
+            row["project"] = row.pop("group_name")
+            new_storage._insert("events", row)
+            i += 1
+
+        server._logger.warning("Migration do0(): done")
 
 class Server(ServerSocket):
     """
@@ -425,10 +477,6 @@ class Server(ServerSocket):
         self._ssl = None
         self._clients = []
 
-        # Initialize the storage
-        self._storage = Storage(self.server_file("database.db"))
-        self._storage.initialize()
-
         # Load the configuration
         self._config_path = self.server_file("config_server.json")
         self._config = self.default_config()
@@ -438,6 +486,13 @@ class Server(ServerSocket):
         else:
             self._logger.setLevel(self._config["level"])
         self.save_config()
+
+        # Check if any migration
+        self.migrate()
+
+        # Initialize the storage
+        self._storage = Storage(self.server_file("database.db"))
+        self._storage.initialize()
 
         self._discovery = ClientsDiscovery(logger)
         # A temporory lock to stop clients while updating other locks
@@ -474,7 +529,21 @@ class Server(ServerSocket):
         """
         return {
             "level": logging.INFO,
+            "migration": 0,
         }
+
+    def migrate(self):
+        migrationId = self.config["migration"]
+        while True:
+            migrationId += 1
+            method_name = "do%d" % migrationId
+            try:
+                method = getattr(Migrate, method_name)
+            except AttributeError:
+                break
+            method(self)
+            self.config["migration"] = migrationId
+            self.save_config()
 
     def load_config(self):
         """
