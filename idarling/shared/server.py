@@ -452,7 +452,7 @@ class Migrate(object):
         new_storage._insert_all("snapshots", new_level3_rows)
 
         server._logger.warning("Migration do1(): inserting events...")
-        i = 0
+        i = 1
         for row in old_events_rows:
             if i % 1000 == 0:
                 server._logger.warning("Migration do1(): %d events done..." % i)
