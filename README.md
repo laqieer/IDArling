@@ -138,10 +138,10 @@ worth mentioning some implementation details.
 
 We like to define the following terms in the IDArling jargon:
 
-- project: a project corresponds to a researched topic such as a given CVE, malware family,
+- **project**: a project corresponds to a researched topic such as a given CVE, malware family,
   etc. regrouping several binary files
-- binary file: a binary file corresponds to a given file to analyse (i.e. unique SHA-256 hash)
-- database snapshot: a database snapshot is a snapshot of an IDB as a given time. It is 
+- **binary file**: a binary file corresponds to a given file to analyse (i.e. unique SHA-256 hash)
+- **database snapshot**: a database snapshot is a snapshot of an IDB as a given time. It is 
   used as a baseline to apply any change made from this snapshot by any other 
   IDA user
 
@@ -158,8 +158,8 @@ and all users SHOULD then use that particular snapshot.
 In general, it is better to always start from the latest snapshot for a given binary file
 when you start working from the IDArling server, except if you know what you are doing.
 
-Another important detail of IDArling is that it stores in the IDB itself the project, binary file
-and database snapshot that was used when saving the IDB onto the server. Because of that, it is
+Another important detail of IDArling is that **it stores in the IDB itself the project, binary file
+and database snapshot** that was used when saving the IDB onto the server. Because of that, it is
 possible to open a local copy of a given IDB that was previously used with IDArling and the IDArling 
 plugin will recognise what snapshot this IDB is part of.
 
@@ -171,7 +171,7 @@ simultaneously saved their own IDB and uploaded a new snapshot and you want to u
 
 ### Known changes already synced by IDArling
 
-The changes are indicated as "ticks" in the IDArling plugin jaron.
+The changes are indicated as "**ticks**" in the IDArling plugin jaron.
 
 In general, the changes applied to a given snapshot are retrieved the next 
 time you open the particular snapshot as the events will be propagated to the 
