@@ -45,31 +45,31 @@ from PyQt5.QtWidgets import (
 )
 
 from ..shared.commands import (
-    CreateGroup,
     CreateProject,
-    CreateDatabase,
-    RenameProject,
-    ListGroups,
+    CreateBinary,
+    CreateSnapshot,
+    RenameBinary,
     ListProjects,
-    ListDatabases,
+    ListBinaries,
+    ListSnapshots,
     UpdateUserColor,
     UpdateUserName,
-    DeleteGroup,
     DeleteProject,
-    DeleteDatabase,
+    DeleteBinary,
+    DeleteSnapshot,
 )
-from ..shared.models import Group, Project, Database
+from ..shared.models import Project, Binary, Snapshot
 
 
 class OpenDialog(QDialog):
-    """This dialog is shown to user to select which remote database to load."""
+    """This dialog is shown to user to select which remote snapshot to load."""
 
     def __init__(self, plugin):
         super(OpenDialog, self).__init__()
         self._plugin = plugin
-        self._groups = None
         self._projects = None
-        self._databases = None
+        self._binaries = None
+        self._snapshots = None
 
         # General setup of the dialog
         self.setWindowTitle("Open from Remote Server")
@@ -83,65 +83,65 @@ class OpenDialog(QDialog):
         main_layout = QGridLayout(main)
         layout.addWidget(main)
 
-        # Groups - left layout
+        # Projects - left layout
         self._left_side = QWidget(main)
         self._left_layout = QVBoxLayout(self._left_side)
-        self._groups_table = QTableWidget(0, 1, self._left_side)
-        self._groups_table.setHorizontalHeaderLabels(("Groups",))
-        self._groups_table.horizontalHeader().setSectionsClickable(False)
-        self._groups_table.horizontalHeader().setStretchLastSection(True)
-        self._groups_table.verticalHeader().setVisible(False)
-        self._groups_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self._groups_table.setSelectionMode(QTableWidget.SingleSelection)
-        self._groups_table.itemSelectionChanged.connect(
-            self._group_clicked
-        )
-        self._left_layout.addWidget(self._groups_table)
-        main_layout.addWidget(self._left_side, 0, 0)
-        main_layout.setColumnStretch(0, 1)
-
-        self.delete_group_button = QPushButton("Delete Group", self._left_side)
-        self.delete_group_button.setEnabled(False)
-        self.delete_group_button.clicked.connect(self._delete_group_clicked)
-        self._left_layout.addWidget(self.delete_group_button)
-
-        # Projects - middle layout
-        self._middle_side = QWidget(main)
-        self._middle_layout = QVBoxLayout(self._middle_side)
-        self._projects_table = QTableWidget(0, 1, self._middle_side)
+        self._projects_table = QTableWidget(0, 1, self._left_side)
         self._projects_table.setHorizontalHeaderLabels(("Projects",))
         self._projects_table.horizontalHeader().setSectionsClickable(False)
         self._projects_table.horizontalHeader().setStretchLastSection(True)
         self._projects_table.verticalHeader().setVisible(False)
         self._projects_table.setSelectionBehavior(QTableWidget.SelectRows)
         self._projects_table.setSelectionMode(QTableWidget.SingleSelection)
-        self._projects_table.itemClicked.connect(
+        self._projects_table.itemSelectionChanged.connect(
             self._project_clicked
         )
-        self._middle_layout.addWidget(self._projects_table)
+        self._left_layout.addWidget(self._projects_table)
+        main_layout.addWidget(self._left_side, 0, 0)
+        main_layout.setColumnStretch(0, 1)
+
+        self.delete_project_button = QPushButton("Delete Project", self._left_side)
+        self.delete_project_button.setEnabled(False)
+        self.delete_project_button.clicked.connect(self._delete_project_clicked)
+        self._left_layout.addWidget(self.delete_project_button)
+
+        # Binaries - middle layout
+        self._middle_side = QWidget(main)
+        self._middle_layout = QVBoxLayout(self._middle_side)
+        self._binaries_table = QTableWidget(0, 1, self._middle_side)
+        self._binaries_table.setHorizontalHeaderLabels(("Binaries",))
+        self._binaries_table.horizontalHeader().setSectionsClickable(False)
+        self._binaries_table.horizontalHeader().setStretchLastSection(True)
+        self._binaries_table.verticalHeader().setVisible(False)
+        self._binaries_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self._binaries_table.setSelectionMode(QTableWidget.SingleSelection)
+        self._binaries_table.itemClicked.connect(
+            self._binary_clicked
+        )
+        self._middle_layout.addWidget(self._binaries_table)
         main_layout.addWidget(self._middle_side, 0, 1)
         main_layout.setColumnStretch(1, 1)
 
-        # Create a project button
-        self._rename_project_button = QPushButton("Rename Project", self._middle_side)
-        self._rename_project_button.setEnabled(False)
-        self._rename_project_button.clicked.connect(self._rename_project_button_clicked)
-        self._middle_layout.addWidget(self._rename_project_button)
+        # Create a binary button
+        self._rename_binary_button = QPushButton("Rename Binary", self._middle_side)
+        self._rename_binary_button.setEnabled(False)
+        self._rename_binary_button.clicked.connect(self._rename_binary_button_clicked)
+        self._middle_layout.addWidget(self._rename_binary_button)
 
-        self._delete_project_button = QPushButton(
-            "Delete Project", self._middle_side
+        self._delete_binary_button = QPushButton(
+            "Delete Binary", self._middle_side
         )
-        self._delete_project_button.setEnabled(False)
-        self._delete_project_button.clicked.connect(
-            self._delete_project_clicked
+        self._delete_binary_button.setEnabled(False)
+        self._delete_binary_button.clicked.connect(
+            self._delete_binary_clicked
         )
-        self._middle_layout.addWidget(self._delete_project_button)
+        self._middle_layout.addWidget(self._delete_binary_button)
 
-        # Databases - right layout
+        # Snapshots - right layout
         right_side = QWidget(main)
         right_layout = QVBoxLayout(right_side)
-        details_group = QGroupBox("Details", right_side)
-        details_layout = QGridLayout(details_group)
+        details_project = QGroupBox("Details", right_side)
+        details_layout = QGridLayout(details_project)
         self._file_label = QLabel("<b>File:</b>")
         details_layout.addWidget(self._file_label, 0, 0)
         self._hash_label = QLabel("<b>Hash:</b>")
@@ -152,39 +152,39 @@ class OpenDialog(QDialog):
         self._date_label = QLabel("<b>Date:</b>")
         details_layout.addWidget(self._date_label, 1, 1)
         details_layout.setColumnStretch(1, 1)
-        right_layout.addWidget(details_group)
+        right_layout.addWidget(details_project)
         main_layout.addWidget(right_side, 0, 2)
         main_layout.setColumnStretch(2, 2)
 
-        # Databases table
-        self._databases_group = QGroupBox("Databases", right_side)
-        self._databases_layout = QVBoxLayout(self._databases_group)
-        self._databases_table = QTableWidget(0, 3, self._databases_group)
+        # Snapshots table
+        self._snapshots_project = QGroupBox("Snapshots", right_side)
+        self._snapshots_layout = QVBoxLayout(self._snapshots_project)
+        self._snapshots_table = QTableWidget(0, 3, self._snapshots_project)
         labels = ("Name", "Date", "Ticks")
-        self._databases_table.setHorizontalHeaderLabels(labels)
-        horizontal_header = self._databases_table.horizontalHeader()
+        self._snapshots_table.setHorizontalHeaderLabels(labels)
+        horizontal_header = self._snapshots_table.horizontalHeader()
         horizontal_header.setSectionsClickable(False)
         horizontal_header.setSectionResizeMode(0, horizontal_header.Stretch)
-        self._databases_table.verticalHeader().setVisible(False)
-        self._databases_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self._databases_table.setSelectionMode(QTableWidget.SingleSelection)
-        self._databases_table.itemSelectionChanged.connect(
-            self._database_clicked
+        self._snapshots_table.verticalHeader().setVisible(False)
+        self._snapshots_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self._snapshots_table.setSelectionMode(QTableWidget.SingleSelection)
+        self._snapshots_table.itemSelectionChanged.connect(
+            self._snapshot_clicked
         )
-        self._databases_table.itemDoubleClicked.connect(
-            self._database_double_clicked
+        self._snapshots_table.itemDoubleClicked.connect(
+            self._snapshot_double_clicked
         )
-        self._databases_layout.addWidget(self._databases_table)
+        self._snapshots_layout.addWidget(self._snapshots_table)
 
-        self._delete_database_button = QPushButton(
-            "Delete Database", self._databases_group
+        self._delete_snapshot_button = QPushButton(
+            "Delete Snapshot", self._snapshots_project
         )
-        self._delete_database_button.setEnabled(False)
-        self._delete_database_button.clicked.connect(
-            self._delete_database_clicked
+        self._delete_snapshot_button.setEnabled(False)
+        self._delete_snapshot_button.clicked.connect(
+            self._delete_snapshot_clicked
         )
-        self._databases_layout.addWidget(self._delete_database_button)
-        right_layout.addWidget(self._databases_group)
+        self._snapshots_layout.addWidget(self._delete_snapshot_button)
+        right_layout.addWidget(self._snapshots_project)
 
         # General buttons - bottom right "stretched" layout
         buttons_widget = QWidget(self)
@@ -207,68 +207,20 @@ class OpenDialog(QDialog):
         buttons_layout.addWidget(self._accept_button)
         layout.addWidget(buttons_widget)
 
-        # Ask the server for the list of groups
-        d = self._plugin.network.send_packet(ListGroups.Query())
-        d.add_callback(self._groups_listed)
-        d.add_errback(self._plugin.logger.exception)
-
-    ##### GROUPS #####
-
-    def _groups_listed(self, reply):
-        """Called when the groups list is received."""
-        self._groups = sorted(reply.groups, key=lambda x: x.name) # sort groups by name
-        #self._groups = sorted(reply.groups, key=lambda x: x.date, reverse=True) # sort groups by reverse date
-        self._refresh_groups()
-
-    def _refresh_groups(self):
-        """Refreshes the groups table."""
-        self._groups_table.setRowCount(len(self._groups))
-        for i, group in enumerate(self._groups):
-            item = QTableWidgetItem(group.name)
-            item.setData(Qt.UserRole, group)
-            item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-            self._groups_table.setItem(i, 0, item)
-
-    def _group_clicked(self):
-        self._plugin.logger.debug("OpenDialog._group_clicked()")
-        """Called when a group item is clicked."""
-        group = self._groups_table.selectedItems()[0].data(Qt.UserRole)
-
         # Ask the server for the list of projects
-        d = self._plugin.network.send_packet(ListProjects.Query(group.name))
-        d.add_callback(partial(self._projects_listed))
+        d = self._plugin.network.send_packet(ListProjects.Query())
+        d.add_callback(self._projects_listed)
         d.add_errback(self._plugin.logger.exception)
-
-        self.delete_group_button.setEnabled(True)
-
-    def _delete_group_clicked(self):
-        self._plugin.logger.debug("OpenDialog._delete_group_clicked()")
-        group = self._groups_table.selectedItems()[0].data(Qt.UserRole)
-        d = self._plugin.network.send_packet(DeleteGroup.Query(group.name))
-        d.add_callback(partial(self._group_deleted, group))
-        d.add_errback(self._plugin.logger.exception)
-
-    def _group_deleted(self, group, reply):
-        if reply.deleted:
-            for e in self._groups:
-                if e.name == group.name:
-                    self._groups.remove(e)
-            self._refresh_groups()
-        else:
-            QMessageBox.about(self, "IDArling Error", "Unable to delete.\n"
-                                                      "Likely more than one client connected to target?")
 
     ##### PROJECTS #####
 
     def _projects_listed(self, reply):
-        self._plugin.logger.debug("OpenDialog._projects_listed()")
         """Called when the projects list is received."""
-        self._projects = sorted(reply.projects, key=lambda x: x.name) # sort project by name
-        #self._projects = sorted(reply.projects, key=lambda x: x.date, reverse=True) # sort project by reverse date
+        self._projects = sorted(reply.projects, key=lambda x: x.name) # sort projects by name
+        #self._projects = sorted(reply.projects, key=lambda x: x.date, reverse=True) # sort projects by reverse date
         self._refresh_projects()
 
     def _refresh_projects(self):
-        self._plugin.logger.debug("OpenDialog._refresh_projects()")
         """Refreshes the projects table."""
         self._projects_table.setRowCount(len(self._projects))
         for i, project in enumerate(self._projects):
@@ -278,39 +230,21 @@ class OpenDialog(QDialog):
             self._projects_table.setItem(i, 0, item)
 
     def _project_clicked(self):
-        """Called when a project item is clicked."""
         self._plugin.logger.debug("OpenDialog._project_clicked()")
-        if len(self._projects) == 0:
-            self._plugin.logger.info("No project to display yet 2")
-            return  # no project in the group yet
-        
-        group = self._groups_table.selectedItems()[0].data(Qt.UserRole)
-        project_items = self._projects_table.selectedItems()
-        if not project_items:
-            self._plugin.logger.info("No selected item 2")
-            return
-        project = project_items[0].data(Qt.UserRole)
-        self._file_label.setText("<b>File:</b> %s" % str(project.file))
-        self._hash_label.setText("<b>Hash:</b> %s" % str(project.hash))
-        self._type_label.setText("<b>Type:</b> %s" % str(project.type))
-        self._date_label.setText("<b>Date:</b> %s" % str(project.date))
+        """Called when a project item is clicked."""
+        project = self._projects_table.selectedItems()[0].data(Qt.UserRole)
 
-        # Ask the server for the list of databases
-        d = self._plugin.network.send_packet(ListDatabases.Query(group.name, project.name))
-        d.add_callback(partial(self._databases_listed))
+        # Ask the server for the list of binaries
+        d = self._plugin.network.send_packet(ListBinaries.Query(project.name))
+        d.add_callback(partial(self._binaries_listed))
         d.add_errback(self._plugin.logger.exception)
-        self._rename_project_button.setEnabled(True)
-        self._delete_project_button.setEnabled(True)
+
+        self.delete_project_button.setEnabled(True)
 
     def _delete_project_clicked(self):
         self._plugin.logger.debug("OpenDialog._delete_project_clicked()")
-        group = self._groups_table.selectedItems()[0].data(Qt.UserRole)
-        project_items = self._projects_table.selectedItems()
-        if not project_items:
-            self._plugin.logger.info("No selected item 2")
-            return
-        project = project_items[0].data(Qt.UserRole)
-        d = self._plugin.network.send_packet(DeleteProject.Query(group.name, project.name))
+        project = self._projects_table.selectedItems()[0].data(Qt.UserRole)
+        d = self._plugin.network.send_packet(DeleteProject.Query(project.name))
         d.add_callback(partial(self._project_deleted, project))
         d.add_errback(self._plugin.logger.exception)
 
@@ -320,104 +254,170 @@ class OpenDialog(QDialog):
                 if e.name == project.name:
                     self._projects.remove(e)
             self._refresh_projects()
-            self._databases_table.clearContents()
         else:
             QMessageBox.about(self, "IDArling Error", "Unable to delete.\n"
                                                       "Likely more than one client connected to target?")
 
-    def _rename_project_button_clicked(self, _):
-        current_project = self._projects_table.selectedItems()[0].data(Qt.UserRole).name
-        dialog = RenameProjectDialog(self._plugin, "Rename project", current_project)
-        dialog.accepted.connect(partial(self._rename_project_dialog_accepted, dialog))
-        dialog.exec_()
+    ##### BINARIES #####
 
-    def _rename_project_dialog_accepted(self, dialog):
-        group = self._groups_table.selectedItems()[0].data(Qt.UserRole).name
-        old_name = self._projects_table.selectedItems()[0].data(Qt.UserRole).name
-        new_name = dialog.get_result()
-        self._plugin.logger.info("Request to rename to %s to %s in group: %s" % (old_name, new_name, group))
-        # Send the packet to the server with the new name
-        d = self._plugin.network.send_packet(RenameProject.Query(group, old_name, new_name))
-        d.add_callback(self._project_renamed)
+    def _binaries_listed(self, reply):
+        self._plugin.logger.debug("OpenDialog._binaries_listed()")
+        """Called when the binaries list is received."""
+        self._binaries = sorted(reply.binaries, key=lambda x: x.name) # sort binary by name
+        #self._binaries = sorted(reply.binaries, key=lambda x: x.date, reverse=True) # sort binary by reverse date
+        self._refresh_binaries()
+
+    def _refresh_binaries(self):
+        self._plugin.logger.debug("OpenDialog._refresh_binaries()")
+        """Refreshes the binaries table."""
+        self._binaries_table.setRowCount(len(self._binaries))
+        for i, binary in enumerate(self._binaries):
+            item = QTableWidgetItem(binary.name)
+            item.setData(Qt.UserRole, binary)
+            item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+            self._binaries_table.setItem(i, 0, item)
+
+    def _binary_clicked(self):
+        """Called when a binary item is clicked."""
+        self._plugin.logger.debug("OpenDialog._binary_clicked()")
+        if len(self._binaries) == 0:
+            self._plugin.logger.info("No binary to display yet 2")
+            return  # no binary in the project yet
+
+        project = self._projects_table.selectedItems()[0].data(Qt.UserRole)
+        binary_items = self._binaries_table.selectedItems()
+        if not binary_items:
+            self._plugin.logger.info("No selected item 2")
+            return
+        binary = binary_items[0].data(Qt.UserRole)
+        self._file_label.setText("<b>File:</b> %s" % str(binary.file))
+        self._hash_label.setText("<b>Hash:</b> %s" % str(binary.hash))
+        self._type_label.setText("<b>Type:</b> %s" % str(binary.type))
+        self._date_label.setText("<b>Date:</b> %s" % str(binary.date))
+
+        # Ask the server for the list of snapshots
+        d = self._plugin.network.send_packet(ListSnapshots.Query(project.name, binary.name))
+        d.add_callback(partial(self._snapshots_listed))
+        d.add_errback(self._plugin.logger.exception)
+        self._rename_binary_button.setEnabled(True)
+        self._delete_binary_button.setEnabled(True)
+
+    def _delete_binary_clicked(self):
+        self._plugin.logger.debug("OpenDialog._delete_binary_clicked()")
+        project = self._projects_table.selectedItems()[0].data(Qt.UserRole)
+        binary_items = self._binaries_table.selectedItems()
+        if not binary_items:
+            self._plugin.logger.info("No selected item 2")
+            return
+        binary = binary_items[0].data(Qt.UserRole)
+        d = self._plugin.network.send_packet(DeleteBinary.Query(project.name, binary.name))
+        d.add_callback(partial(self._binary_deleted, binary))
         d.add_errback(self._plugin.logger.exception)
 
-    def _project_renamed(self, reply):
+    def _binary_deleted(self, binary, reply):
+        if reply.deleted:
+            for e in self._binaries:
+                if e.name == binary.name:
+                    self._binaries.remove(e)
+            self._refresh_binaries()
+            self._snapshots_table.clearContents()
+        else:
+            QMessageBox.about(self, "IDArling Error", "Unable to delete.\n"
+                                                      "Likely more than one client connected to target?")
+
+    def _rename_binary_button_clicked(self, _):
+        current_binary = self._binaries_table.selectedItems()[0].data(Qt.UserRole).name
+        dialog = RenameBinaryDialog(self._plugin, "Rename binary", current_binary)
+        dialog.accepted.connect(partial(self._rename_binary_dialog_accepted, dialog))
+        dialog.exec_()
+
+    def _rename_binary_dialog_accepted(self, dialog):
+        project = self._projects_table.selectedItems()[0].data(Qt.UserRole).name
+        old_name = self._binaries_table.selectedItems()[0].data(Qt.UserRole).name
+        new_name = dialog.get_result()
+        self._plugin.logger.info("Request to rename to %s to %s in project: %s" % (old_name, new_name, project))
+        # Send the packet to the server with the new name
+        d = self._plugin.network.send_packet(RenameBinary.Query(project, old_name, new_name))
+        d.add_callback(self._binary_renamed)
+        d.add_errback(self._plugin.logger.exception)
+
+    def _binary_renamed(self, reply):
         self._renamed = reply.renamed
         if self._renamed:
-            self._projects = self.sort_projects(reply.projects)
-            self._refresh_projects()
+            self._binaries = self.sort_binaries(reply.binaries)
+            self._refresh_binaries()
         else:
-            self._plugin.logger.debug("Create project dialog")
+            self._plugin.logger.debug("Create binary dialog")
             QMessageBox.about(self, "IDArling Error", "Unable to rename.\n"
                     "Likely more than one client connected?")
 
-    ##### DATABASES #####
+    ##### SNAPSHOTS #####
 
-    def _databases_listed(self, reply):
-        """Called when the databases list is received."""
-        self._databases = self.sort_databases(reply.databases)
-        self._refresh_databases()
+    def _snapshots_listed(self, reply):
+        """Called when the snapshots list is received."""
+        self._snapshots = self.sort_snapshots(reply.snapshots)
+        self._refresh_snapshots()
 
-    def _refresh_databases(self):
-        """Refreshes the table of databases."""
+    def _refresh_snapshots(self):
+        """Refreshes the table of snapshots."""
 
-        def create_item(text, database):
+        def create_item(text, snapshot):
             item = QTableWidgetItem(text)
-            item.setData(Qt.UserRole, database)
+            item.setData(Qt.UserRole, snapshot)
             item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-            if database.tick == -1:
+            if snapshot.tick == -1:
                 item.setFlags(item.flags() & ~Qt.ItemIsEnabled)
             return item
 
-        self._databases_table.setRowCount(len(self._databases))
-        for i, database in enumerate(self._databases):
-            self._databases_table.setItem(
-                i, 0, create_item(database.name, database)
+        self._snapshots_table.setRowCount(len(self._snapshots))
+        for i, snapshot in enumerate(self._snapshots):
+            self._snapshots_table.setItem(
+                i, 0, create_item(snapshot.name, snapshot)
             )
-            self._databases_table.setItem(
-                i, 1, create_item(database.date, database)
+            self._snapshots_table.setItem(
+                i, 1, create_item(snapshot.date, snapshot)
             )
-            tick = str(database.tick) if database.tick != -1 else "<none>"
-            self._databases_table.setItem(i, 2, create_item(tick, database))
+            tick = str(snapshot.tick) if snapshot.tick != -1 else "<none>"
+            self._snapshots_table.setItem(i, 2, create_item(tick, snapshot))
 
-    def _database_clicked(self):
+    def _snapshot_clicked(self):
         self._accept_button.setEnabled(True)
-        self._delete_database_button.setEnabled(True)
+        self._delete_snapshot_button.setEnabled(True)
 
-    def _delete_database_clicked(self):
-        self._plugin.logger.debug("OpenDialog._delete_database_clicked()")
-        group = self._groups_table.selectedItems()[0].data(Qt.UserRole)
-        project_items = self._projects_table.selectedItems()
-        if not project_items:
+    def _delete_snapshot_clicked(self):
+        self._plugin.logger.debug("OpenDialog._delete_snapshot_clicked()")
+        project = self._projects_table.selectedItems()[0].data(Qt.UserRole)
+        binary_items = self._binaries_table.selectedItems()
+        if not binary_items:
             self._plugin.logger.info("No selected item 2")
             return
-        project = project_items[0].data(Qt.UserRole)
-        database = self._databases_table.selectedItems()[0].data(Qt.UserRole)
-        d = self._plugin.network.send_packet(DeleteDatabase.Query(group.name, project.name, database.name))
-        d.add_callback(partial(self._database_deleted, database))
+        binary = binary_items[0].data(Qt.UserRole)
+        snapshot = self._snapshots_table.selectedItems()[0].data(Qt.UserRole)
+        d = self._plugin.network.send_packet(DeleteSnapshot.Query(project.name, binary.name, snapshot.name))
+        d.add_callback(partial(self._snapshot_deleted, snapshot))
         d.add_errback(self._plugin.logger.exception)
 
-    def _database_deleted(self, database, reply):
+    def _snapshot_deleted(self, snapshot, reply):
         if reply.deleted:
-            for e in self._databases:
-                if e.name == database.name:
-                    self._databases.remove(e)
-            self._refresh_databases()
+            for e in self._snapshots:
+                if e.name == snapshot.name:
+                    self._snapshots.remove(e)
+            self._refresh_snapshots()
         else:
             QMessageBox.about(self, "IDArling Error", "Unable to delete.\n"
                                                       "Likely more than one client connected to target?")
 
-    def _database_double_clicked(self):
-        project_type = self._projects_table.selectedItems()[0].data(Qt.UserRole).type
+    def _snapshot_double_clicked(self):
+        binary_type = self._binaries_table.selectedItems()[0].data(Qt.UserRole).type
         # For now we are only detecting some bad matching between IDA architecture
         # and the disassembled binary's architecture but we would need to 
-        # actually save a project architecture (32-bit or 64-bit) to support all
+        # actually save a binary architecture (32-bit or 64-bit) to support all
         # cases
         # E.g. below we support "Portable executable for 80386 (PE)" vs 
         # "Portable executable for AMD64 (PE)"
         # ida.exe vs ida64.exe can be determined using idc.BADADDR trick
-        if (idc.BADADDR == 0xffffffffffffffff and "80386" in project_type) \
-         or (idc.BADADDR == 0xffffffff and "AMD64" in project_type):
+        if (idc.BADADDR == 0xffffffffffffffff and "80386" in binary_type) \
+         or (idc.BADADDR == 0xffffffff and "AMD64" in binary_type):
             QMessageBox.about(self, "IDArling Error", "Wrong architecture!\n"
                     "You must use the right version of IDA/IDA64,")
             return
@@ -426,31 +426,31 @@ class OpenDialog(QDialog):
     ##### HELPERS #####
 
     def get_result(self):
-        """Get the project and database selected by the user."""
-        group = self._groups_table.selectedItems()[0].data(Qt.UserRole)
+        """Get the binary and snapshot selected by the user."""
         project = self._projects_table.selectedItems()[0].data(Qt.UserRole)
-        database = self._databases_table.selectedItems()[0].data(Qt.UserRole)
-        return group, project, database
+        binary = self._binaries_table.selectedItems()[0].data(Qt.UserRole)
+        snapshot = self._snapshots_table.selectedItems()[0].data(Qt.UserRole)
+        return project, binary, snapshot
 
     # XXX - Make x.name configurable based on clicking on columns
-    def sort_projects(self, projects):
-        #return sorted(projects, key=lambda x: x.date, reverse=True) # sort project by reverse date
-        return sorted(projects, key=lambda x: x.name)
+    def sort_binaries(self, binaries):
+        #return sorted(binaries, key=lambda x: x.date, reverse=True) # sort binary by reverse date
+        return sorted(binaries, key=lambda x: x.name)
 
     # XXX - Make x.date configurable based on clicking on columns
-    def sort_databases(self, databases):
-        return sorted(databases, key=lambda x: x.date, reverse=True) # sort databases by reverse date
+    def sort_snapshots(self, snapshots):
+        return sorted(snapshots, key=lambda x: x.date, reverse=True) # sort snapshots by reverse date
 
 class SaveDialog(OpenDialog):
     """
-    This save dialog is shown to user to select which remote database to save. We
+    This save dialog is shown to user to select which remote snapshot to save. We
     extend the open dialog to reuse most of the UI setup code.
     """
 
     def __init__(self, plugin):
         super(SaveDialog, self).__init__(plugin)
-        self._group = None
         self._project = None
+        self._binary = None
 
         # General setup of the dialog
         self.setWindowTitle("Save to Remote Server")
@@ -460,116 +460,47 @@ class SaveDialog(OpenDialog):
         # Change the accept button text
         self._accept_button.setText("Save")
 
-        # Add a button to create a group
-        create_group_button = QPushButton("Create Group", self._left_side)
-        create_group_button.clicked.connect(self._create_group_clicked)
-        self._left_layout.addWidget(create_group_button)
-        
         # Add a button to create a project
-        self._create_project_button = QPushButton(
-            "Create Project", self._middle_side
+        create_project_button = QPushButton("Create Project", self._left_side)
+        create_project_button.clicked.connect(self._create_project_clicked)
+        self._left_layout.addWidget(create_project_button)
+
+        # Add a button to create a binary
+        self._create_binary_button = QPushButton(
+            "Create Binary", self._middle_side
         )
-        self._create_project_button.setEnabled(False)
-        self._create_project_button.clicked.connect(
-            self._create_project_clicked
+        self._create_binary_button.setEnabled(False)
+        self._create_binary_button.clicked.connect(
+            self._create_binary_clicked
         )
-        self._middle_layout.addWidget(self._create_project_button)
+        self._middle_layout.addWidget(self._create_binary_button)
 
-        # Add a button to create a database
-        self._create_database_button = QPushButton(
-            "Create Database", self._databases_group
+        # Add a button to create a snapshot
+        self._create_snapshot_button = QPushButton(
+            "Create Snapshot", self._snapshots_project
         )
-        self._create_database_button.setEnabled(False)
-        self._create_database_button.clicked.connect(
-            self._create_database_clicked
+        self._create_snapshot_button.setEnabled(False)
+        self._create_snapshot_button.clicked.connect(
+            self._create_snapshot_clicked
         )
-        self._databases_layout.addWidget(self._create_database_button)
-
-    ##### GROUPS #####
-
-    # XXX - not needed?
-    def _refresh_groups(self):
-        super(SaveDialog, self)._refresh_groups()
-        for row in range(self._groups_table.rowCount()):
-            item = self._groups_table.item(row, 0)
-            group = item.data(Qt.UserRole)
-            pass
-
-    def _group_clicked(self):
-        super(SaveDialog, self)._group_clicked()
-        self._group = self._groups_table.selectedItems()[0].data(
-            Qt.UserRole
-        )
-        self._create_project_button.setEnabled(True)
-
-    def _create_group_clicked(self):
-        dialog = CreateGroupDialog(self._plugin)
-        dialog.accepted.connect(partial(self._create_group_accepted, dialog))
-        dialog.exec_()
-
-    def _create_group_accepted(self, dialog):
-        """Called when the group creation dialog is accepted."""
-        name = dialog.get_result()
-        # Ensure we don't already have a group with that name
-        if any(group.name == name for group in self._groups):
-            failure = QMessageBox()
-            failure.setIcon(QMessageBox.Warning)
-            failure.setStandardButtons(QMessageBox.Ok)
-            failure.setText("A group with that name already exists!")
-            failure.setWindowTitle("New Group")
-            icon_path = self._plugin.plugin_resource("upload.png")
-            failure.setWindowIcon(QIcon(icon_path))
-            failure.exec_()
-            return
-
-        # Get all the information we need and sent it to the server
-        date_format = "%Y/%m/%d %H:%M"
-        date = datetime.datetime.now().strftime(date_format)
-        group = Group(name, date)
-        d = self._plugin.network.send_packet(CreateGroup.Query(group))
-        d.add_callback(partial(self._group_created, group))
-        d.add_errback(self._plugin.logger.exception)
-
-    def _group_created(self, group, _):
-        """Called when the create group reply is received."""
-        self._groups.append(group)
-        self._refresh_groups()
-        row = len(self._groups) - 1
-        self._groups_table.selectRow(row)
-        self._accept_button.setEnabled(False)
+        self._snapshots_layout.addWidget(self._create_snapshot_button)
 
     ##### PROJECTS #####
 
+    # XXX - not needed?
     def _refresh_projects(self):
-        self._plugin.logger.debug("SaveDialog._refresh_projects()")
         super(SaveDialog, self)._refresh_projects()
-        self._plugin.logger.debug("SaveDialog._refresh_projects() continue")
-
-        if len(self._projects) == 0:
-            self._plugin.logger.info("No project to display yet 3")
-            return  # no project in the group yet
-
-        hash = ida_nalt.retrieve_input_file_md5()
-        if hash.endswith(b'\x00'):
-            hash = hash[0:-1]
-        # This decode is safe, because we have an hash in hex format
-        hash = binascii.hexlify(hash).decode('utf-8')
         for row in range(self._projects_table.rowCount()):
             item = self._projects_table.item(row, 0)
             project = item.data(Qt.UserRole)
-            if project.hash != hash:
-                item.setFlags(item.flags() & ~Qt.ItemIsEnabled)
+            pass
 
     def _project_clicked(self):
-        self._plugin.logger.debug("SaveDialog._project_clicked()")
         super(SaveDialog, self)._project_clicked()
-        self._plugin.logger.debug("SaveDialog._project_clicked() continue")
-        project_items = self._projects_table.selectedItems()
-        if not project_items:
-            self._plugin.logger.info("No selected item 2")
-            return
-        self._project = project_items[0].data(Qt.UserRole)
-        self._create_database_button.setEnabled(True)
+        self._project = self._projects_table.selectedItems()[0].data(
+            Qt.UserRole
+        )
+        self._create_binary_button.setEnabled(True)
 
     def _create_project_clicked(self):
         dialog = CreateProjectDialog(self._plugin)
@@ -580,14 +511,83 @@ class SaveDialog(OpenDialog):
         """Called when the project creation dialog is accepted."""
         name = dialog.get_result()
         # Ensure we don't already have a project with that name
-        # Note: 2 different groups can have two projects with the same name
-        # and it will effectively be 2 different projects
         if any(project.name == name for project in self._projects):
             failure = QMessageBox()
             failure.setIcon(QMessageBox.Warning)
             failure.setStandardButtons(QMessageBox.Ok)
             failure.setText("A project with that name already exists!")
             failure.setWindowTitle("New Project")
+            icon_path = self._plugin.plugin_resource("upload.png")
+            failure.setWindowIcon(QIcon(icon_path))
+            failure.exec_()
+            return
+
+        # Get all the information we need and sent it to the server
+        date_format = "%Y/%m/%d %H:%M"
+        date = datetime.datetime.now().strftime(date_format)
+        project = Project(name, date)
+        d = self._plugin.network.send_packet(CreateProject.Query(project))
+        d.add_callback(partial(self._project_created, project))
+        d.add_errback(self._plugin.logger.exception)
+
+    def _project_created(self, project, _):
+        """Called when the create project reply is received."""
+        self._projects.append(project)
+        self._refresh_projects()
+        row = len(self._projects) - 1
+        self._projects_table.selectRow(row)
+        self._accept_button.setEnabled(False)
+
+    ##### BINARIES #####
+
+    def _refresh_binaries(self):
+        self._plugin.logger.debug("SaveDialog._refresh_binaries()")
+        super(SaveDialog, self)._refresh_binaries()
+        self._plugin.logger.debug("SaveDialog._refresh_binaries() continue")
+
+        if len(self._binaries) == 0:
+            self._plugin.logger.info("No binary to display yet 3")
+            return  # no binary in the project yet
+
+        hash = ida_nalt.retrieve_input_file_md5()
+        if hash.endswith(b'\x00'):
+            hash = hash[0:-1]
+        # This decode is safe, because we have an hash in hex format
+        hash = binascii.hexlify(hash).decode('utf-8')
+        for row in range(self._binaries_table.rowCount()):
+            item = self._binaries_table.item(row, 0)
+            binary = item.data(Qt.UserRole)
+            if binary.hash != hash:
+                item.setFlags(item.flags() & ~Qt.ItemIsEnabled)
+
+    def _binary_clicked(self):
+        self._plugin.logger.debug("SaveDialog._binary_clicked()")
+        super(SaveDialog, self)._binary_clicked()
+        self._plugin.logger.debug("SaveDialog._binary_clicked() continue")
+        binary_items = self._binaries_table.selectedItems()
+        if not binary_items:
+            self._plugin.logger.info("No selected item 2")
+            return
+        self._binary = binary_items[0].data(Qt.UserRole)
+        self._create_snapshot_button.setEnabled(True)
+
+    def _create_binary_clicked(self):
+        dialog = CreateBinaryDialog(self._plugin)
+        dialog.accepted.connect(partial(self._create_binary_accepted, dialog))
+        dialog.exec_()
+
+    def _create_binary_accepted(self, dialog):
+        """Called when the binary creation dialog is accepted."""
+        name = dialog.get_result()
+        # Ensure we don't already have a binary with that name
+        # Note: 2 different projects can have two binaries with the same name
+        # and it will effectively be 2 different binaries
+        if any(binary.name == name for binary in self._binaries):
+            failure = QMessageBox()
+            failure.setIcon(QMessageBox.Warning)
+            failure.setStandardButtons(QMessageBox.Ok)
+            failure.setText("A binary with that name already exists!")
+            failure.setWindowTitle("New Binary")
             icon_path = self._plugin.plugin_resource("upload.png")
             failure.setWindowIcon(QIcon(icon_path))
             failure.exec_()
@@ -604,47 +604,47 @@ class SaveDialog(OpenDialog):
         ftype = ida_loader.get_file_type_name()
         date_format = "%Y/%m/%d %H:%M"
         date = datetime.datetime.now().strftime(date_format)
-        project = Project(self._group.name, name, hash, file, ftype, date)
-        d = self._plugin.network.send_packet(CreateProject.Query(project))
-        d.add_callback(partial(self._project_created, project))
+        binary = Binary(self._project.name, name, hash, file, ftype, date)
+        d = self._plugin.network.send_packet(CreateBinary.Query(binary))
+        d.add_callback(partial(self._binary_created, binary))
         d.add_errback(self._plugin.logger.exception)
 
-    def _project_created(self, project, _):
-        """Called when the create project reply is received."""
-        self._projects.append(project)
-        self._refresh_projects()
-        row = len(self._projects) - 1
-        self._projects_table.selectRow(row)
+    def _binary_created(self, binary, _):
+        """Called when the create binary reply is received."""
+        self._binaries.append(binary)
+        self._refresh_binaries()
+        row = len(self._binaries) - 1
+        self._binaries_table.selectRow(row)
         self._accept_button.setEnabled(False)
 
-    ##### DATABASES #####
+    ##### SNAPSHOTS #####
 
-    def _refresh_databases(self):
-        super(SaveDialog, self)._refresh_databases()
-        for row in range(self._databases_table.rowCount()):
+    def _refresh_snapshots(self):
+        super(SaveDialog, self)._refresh_snapshots()
+        for row in range(self._snapshots_table.rowCount()):
             for col in range(3):
-                item = self._databases_table.item(row, col)
+                item = self._snapshots_table.item(row, col)
                 item.setFlags(item.flags() | Qt.ItemIsEnabled)
 
-    def _create_database_clicked(self):
-        """Called when the create database button is clicked."""
-        dialog = CreateDatabaseDialog(self._plugin)
+    def _create_snapshot_clicked(self):
+        """Called when the create snapshot button is clicked."""
+        dialog = CreateSnapshotDialog(self._plugin)
         dialog.accepted.connect(
-            partial(self._create_database_accepted, dialog)
+            partial(self._create_snapshot_accepted, dialog)
         )
         dialog.exec_()
 
-    def _create_database_accepted(self, dialog):
-        """Called when the database creation dialog is accepted."""
+    def _create_snapshot_accepted(self, dialog):
+        """Called when the snapshot creation dialog is accepted."""
         name = dialog.get_result()
 
-        # Ensure we don't already have a database with that name
-        if any(database.name == name for database in self._databases):
+        # Ensure we don't already have a snapshot with that name
+        if any(snapshot.name == name for snapshot in self._snapshots):
             failure = QMessageBox()
             failure.setIcon(QMessageBox.Warning)
             failure.setStandardButtons(QMessageBox.Ok)
-            failure.setText("A database with that name already exists!")
-            failure.setWindowTitle("New Database")
+            failure.setText("A snapshot with that name already exists!")
+            failure.setWindowTitle("New Snapshot")
             icon_path = self._plugin.plugin_resource("upload.png")
             failure.setWindowIcon(QIcon(icon_path))
             failure.exec_()
@@ -653,28 +653,28 @@ class SaveDialog(OpenDialog):
         # Get all the information we need and sent it to the server
         date_format = "%Y/%m/%d %H:%M"
         date = datetime.datetime.now().strftime(date_format)
-        database = Database(self._group.name, self._project.name, name, date, -1)
-        d = self._plugin.network.send_packet(CreateDatabase.Query(database))
-        d.add_callback(partial(self._database_created, database))
+        snapshot = Snapshot(self._project.name, self._binary.name, name, date, -1)
+        d = self._plugin.network.send_packet(CreateSnapshot.Query(snapshot))
+        d.add_callback(partial(self._snapshot_created, snapshot))
         d.add_errback(self._plugin.logger.exception)
 
-    def _database_created(self, database, _):
-        """Called when the new database reply is received."""
-        self._databases.append(database)
-        self._refresh_databases()
-        row = len(self._databases) - 1
-        self._databases_table.selectRow(row)
+    def _snapshot_created(self, snapshot, _):
+        """Called when the new snapshot reply is received."""
+        self._snapshots.append(snapshot)
+        self._refresh_snapshots()
+        row = len(self._snapshots) - 1
+        self._snapshots_table.selectRow(row)
 
-class CreateGroupDialog(QDialog):
-    """The dialog shown when an user wants to create a group."""
+class CreateProjectDialog(QDialog):
+    """The dialog shown when an user wants to create a project."""
 
     def __init__(self, plugin):
-        super(CreateGroupDialog, self).__init__()
+        super(CreateProjectDialog, self).__init__()
         self._plugin = plugin
 
         # General setup of the dialog
-        self._plugin.logger.debug("Create group dialog")
-        self.setWindowTitle("Create Group")
+        self._plugin.logger.debug("Create project dialog")
+        self.setWindowTitle("Create Project")
         icon_path = plugin.plugin_resource("upload.png")
         self.setWindowIcon(QIcon(icon_path))
         self.resize(100, 100)
@@ -682,7 +682,7 @@ class CreateGroupDialog(QDialog):
         # Set up the layout and widgets
         layout = QVBoxLayout(self)
 
-        self._nameLabel = QLabel("<b>Group Name</b>")
+        self._nameLabel = QLabel("<b>Project Name</b>")
         layout.addWidget(self._nameLabel)
         self._nameEdit = QLineEdit()
         self._nameEdit.setValidator(QRegExpValidator(QRegExp("[a-zA-Z0-9-]+")))
@@ -703,29 +703,29 @@ class CreateGroupDialog(QDialog):
         return self._nameEdit.text()
 
 
-class CreateProjectDialog(CreateGroupDialog):
-    """The dialog shown when an user wants to create a project. We extend the
-    create project dialog to avoid duplicating the UI setup code.
+class CreateBinaryDialog(CreateProjectDialog):
+    """The dialog shown when an user wants to create a binary. We extend the
+    create binary dialog to avoid duplicating the UI setup code.
     """
 
     def __init__(self, plugin):
-        super(CreateProjectDialog, self).__init__(plugin)
-        #self._plugin.logger.debug("Create project dialog")
-        self.setWindowTitle("Create Project")
-        self._nameLabel.setText("<b>Project Name</b>")
+        super(CreateBinaryDialog, self).__init__(plugin)
+        #self._plugin.logger.debug("Create binary dialog")
+        self.setWindowTitle("Create Binary")
+        self._nameLabel.setText("<b>Binary Name</b>")
 
 
-class CreateDatabaseDialog(CreateGroupDialog):
+class CreateSnapshotDialog(CreateProjectDialog):
     """
-    The dialog shown when an user wants to create a database. We extend the
-    create project dialog to avoid duplicating the UI setup code.
+    The dialog shown when an user wants to create a snapshot. We extend the
+    create binary dialog to avoid duplicating the UI setup code.
     """
 
     def __init__(self, plugin):
-        super(CreateDatabaseDialog, self).__init__(plugin)
-        #self._plugin.logger.debug("Create database dialog")
-        self.setWindowTitle("Create Database")
-        self._nameLabel.setText("<b>Database Name</b>")
+        super(CreateSnapshotDialog, self).__init__(plugin)
+        #self._plugin.logger.debug("Create snapshot dialog")
+        self.setWindowTitle("Create Snapshot")
+        self._nameLabel.setText("<b>Snapshot Name</b>")
 
 
 class SettingsDialog(QDialog):
@@ -1190,15 +1190,15 @@ class SettingsDialog(QDialog):
 
             self.directoryComboBox.setCurrentIndex(self.directoryComboBox.findText(directory))
 
-class RenameProjectDialog(QDialog):
-    """The dialog shown when an user wants to rename a project."""
+class RenameBinaryDialog(QDialog):
+    """The dialog shown when an user wants to rename a binary."""
 
     def __init__(self, plugin, title, current_value, server=None):
-        super(RenameProjectDialog, self).__init__()
+        super(RenameBinaryDialog, self).__init__()
         self._plugin = plugin
 
         # General setup of the dialog
-        self._plugin.logger.debug("Showing rename project dialog")
+        self._plugin.logger.debug("Showing rename binary dialog")
         self.setWindowTitle(title)
         icon_path = plugin.plugin_resource("settings.png")
         self.setWindowIcon(QIcon(icon_path))
@@ -1207,13 +1207,13 @@ class RenameProjectDialog(QDialog):
         # Setup the layout and widgets
         layout = QVBoxLayout(self)
 
-        self._rename_project_name_label = QLabel("<b>New Project Name</b>")
-        layout.addWidget(self._rename_project_name_label)
-        self._new_project_name = QLineEdit()
+        self._rename_binary_name_label = QLabel("<b>New Binary Name</b>")
+        layout.addWidget(self._rename_binary_name_label)
+        self._new_binary_name = QLineEdit()
         # Populate the field with the old name and already selected
-        self._new_project_name.setText(current_value)
-        self._new_project_name.setSelection(0, len(current_value))
-        layout.addWidget(self._new_project_name)
+        self._new_binary_name.setText(current_value)
+        self._new_binary_name.setSelection(0, len(current_value))
+        layout.addWidget(self._new_binary_name)
 
         self._add_button = QPushButton("OK")
         self._add_button.clicked.connect(self.accept)
@@ -1226,7 +1226,7 @@ class RenameProjectDialog(QDialog):
         layout.addWidget(down_side)
 
     def get_result(self):
-        return self._new_project_name.text()
+        return self._new_binary_name.text()
 
 class ServerInfoDialog(QDialog):
     """The dialog shown when an user creates or edits a server."""

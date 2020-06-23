@@ -10,7 +10,7 @@
 
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
-from .models import Group, Project, Database
+from .models import Project, Binary, Snapshot
 from .packets import (
     Command,
     Container,
@@ -21,33 +21,11 @@ from .packets import (
 )
 
 
-class ListGroups(ParentCommand):
-    __command__ = "list_groups"
-
-    class Query(IQuery, DefaultCommand):
-        pass
-
-    class Reply(IReply, Command):
-        def __init__(self, query, groups):
-            super(ListGroups.Reply, self).__init__(query)
-            self.groups = groups
-
-        def build_command(self, dct):
-            dct["groups"] = [group.build({}) for group in self.groups]
-
-        def parse_command(self, dct):
-            self.groups = [
-                Group.new(group) for group in dct["groups"]
-            ]
-
-
 class ListProjects(ParentCommand):
     __command__ = "list_projects"
 
     class Query(IQuery, DefaultCommand):
-        def __init__(self, group):
-            super(ListProjects.Query, self).__init__()
-            self.group = group
+        pass
 
     class Reply(IReply, Command):
         def __init__(self, query, projects):
@@ -63,61 +41,52 @@ class ListProjects(ParentCommand):
             ]
 
 
-class ListDatabases(ParentCommand):
-    __command__ = "list_databases"
+class ListBinaries(ParentCommand):
+    __command__ = "list_binaries"
 
     class Query(IQuery, DefaultCommand):
-        def __init__(self, group, project):
-            super(ListDatabases.Query, self).__init__()
-            self.group = group
+        def __init__(self, project):
+            super(ListBinaries.Query, self).__init__()
             self.project = project
 
     class Reply(IReply, Command):
-        def __init__(self, query, databases):
-            super(ListDatabases.Reply, self).__init__(query)
-            self.databases = databases
+        def __init__(self, query, binaries):
+            super(ListBinaries.Reply, self).__init__(query)
+            self.binaries = binaries
 
         def build_command(self, dct):
-            dct["databases"] = [
-                database.build({}) for database in self.databases
-            ]
+            dct["binaries"] = [binary.build({}) for binary in self.binaries]
 
         def parse_command(self, dct):
-            self.databases = [
-                Database.new(database) for database in dct["databases"]
+            self.binaries = [
+                Binary.new(binary) for binary in dct["binaries"]
             ]
 
 
-class CreateGroup(ParentCommand):
-    __command__ = "create_group"
-
-    class Query(IQuery, Command):
-        def __init__(self, group):
-            super(CreateGroup.Query, self).__init__()
-            self.group = group
-
-        def build_command(self, dct):
-            self.group.build(dct["group"])
-
-        def parse_command(self, dct):
-            self.group = Group.new(dct["group"])
-
-    class Reply(IReply, Command):
-        pass
-
-
-class DeleteGroup(ParentCommand):
-    __command__ = "delete_group"
+class ListSnapshots(ParentCommand):
+    __command__ = "list_snapshots"
 
     class Query(IQuery, DefaultCommand):
-        def __init__(self, group_name):
-            super(DeleteGroup.Query, self).__init__()
-            self.group_name = group_name
+        def __init__(self, project, binary):
+            super(ListSnapshots.Query, self).__init__()
+            self.project = project
+            self.binary = binary
 
-    class Reply(IReply, DefaultCommand):
-        def __init__(self, query, deleted):
-            super(DeleteGroup.Reply, self).__init__(query)
-            self.deleted = deleted
+    class Reply(IReply, Command):
+        def __init__(self, query, snapshots):
+            super(ListSnapshots.Reply, self).__init__(query)
+            self.snapshots = snapshots
+
+        def build_command(self, dct):
+            dct["snapshots"] = [
+                snapshot.build({}) for snapshot in self.snapshots
+            ]
+
+        def parse_command(self, dct):
+            self.snapshots = [
+                Snapshot.new(snapshot) for snapshot in dct["snapshots"]
+            ]
+
 
 class CreateProject(ParentCommand):
     __command__ = "create_project"
@@ -136,13 +105,13 @@ class CreateProject(ParentCommand):
     class Reply(IReply, Command):
         pass
 
+
 class DeleteProject(ParentCommand):
     __command__ = "delete_project"
 
     class Query(IQuery, DefaultCommand):
-        def __init__(self, group_name, project_name):
+        def __init__(self, project_name):
             super(DeleteProject.Query, self).__init__()
-            self.group_name = group_name
             self.project_name = project_name
 
     class Reply(IReply, DefaultCommand):
@@ -150,48 +119,79 @@ class DeleteProject(ParentCommand):
             super(DeleteProject.Reply, self).__init__(query)
             self.deleted = deleted
 
-
-class CreateDatabase(ParentCommand):
-    __command__ = "create_database"
+class CreateBinary(ParentCommand):
+    __command__ = "create_binary"
 
     class Query(IQuery, Command):
-        def __init__(self, database):
-            super(CreateDatabase.Query, self).__init__()
-            self.database = database
+        def __init__(self, binary):
+            super(CreateBinary.Query, self).__init__()
+            self.binary = binary
 
         def build_command(self, dct):
-            self.database.build(dct["database"])
+            self.binary.build(dct["binary"])
 
         def parse_command(self, dct):
-            self.database = Database.new(dct["database"])
+            self.binary = Binary.new(dct["binary"])
 
     class Reply(IReply, Command):
         pass
 
-class DeleteDatabase(ParentCommand):
-    __command__ = "delete_database"
+class DeleteBinary(ParentCommand):
+    __command__ = "delete_binary"
 
     class Query(IQuery, DefaultCommand):
-        def __init__(self, group_name, project_name, database_name):
-            super(DeleteDatabase.Query, self).__init__()
-            self.group_name = group_name
+        def __init__(self, project_name, binary_name):
+            super(DeleteBinary.Query, self).__init__()
             self.project_name = project_name
-            self.database_name = database_name
+            self.binary_name = binary_name
 
     class Reply(IReply, DefaultCommand):
         def __init__(self, query, deleted):
-            super(DeleteDatabase.Reply, self).__init__(query)
+            super(DeleteBinary.Reply, self).__init__(query)
+            self.deleted = deleted
+
+
+class CreateSnapshot(ParentCommand):
+    __command__ = "create_snapshot"
+
+    class Query(IQuery, Command):
+        def __init__(self, snapshot):
+            super(CreateSnapshot.Query, self).__init__()
+            self.snapshot = snapshot
+
+        def build_command(self, dct):
+            self.snapshot.build(dct["snapshot"])
+
+        def parse_command(self, dct):
+            self.snapshot = Snapshot.new(dct["snapshot"])
+
+    class Reply(IReply, Command):
+        pass
+
+class DeleteSnapshot(ParentCommand):
+    __command__ = "delete_snapshot"
+
+    class Query(IQuery, DefaultCommand):
+        def __init__(self, project_name, binary_name, snapshot_name):
+            super(DeleteSnapshot.Query, self).__init__()
+            self.project_name = project_name
+            self.binary_name = binary_name
+            self.snapshot_name = snapshot_name
+
+    class Reply(IReply, DefaultCommand):
+        def __init__(self, query, deleted):
+            super(DeleteSnapshot.Reply, self).__init__(query)
             self.deleted = deleted
 
 class UpdateFile(ParentCommand):
     __command__ = "update_file"
 
     class Query(IQuery, Container, DefaultCommand):
-        def __init__(self, group, project, database):
+        def __init__(self, project, binary, snapshot):
             super(UpdateFile.Query, self).__init__()
-            self.group = group
             self.project = project
-            self.database = database
+            self.binary = binary
+            self.snapshot = snapshot
 
     class Reply(IReply, Command):
         pass
@@ -201,49 +201,49 @@ class DownloadFile(ParentCommand):
     __command__ = "download_file"
 
     class Query(IQuery, DefaultCommand):
-        def __init__(self, group, project, database):
+        def __init__(self, project, binary, snapshot):
             super(DownloadFile.Query, self).__init__()
-            self.group = group
             self.project = project
-            self.database = database
+            self.binary = binary
+            self.snapshot = snapshot
 
     class Reply(IReply, Container, Command):
         pass
 
-class RenameProject(ParentCommand):
-    __command__ = "rename_project"
+class RenameBinary(ParentCommand):
+    __command__ = "rename_binary"
 
     class Query(IQuery, DefaultCommand):
-        def __init__(self, group, old_name, new_name):
-            super(RenameProject.Query, self).__init__()
-            self.group = group
+        def __init__(self, project, old_name, new_name):
+            super(RenameBinary.Query, self).__init__()
+            self.project = project
             self.old_name = old_name
             self.new_name = new_name
 
     class Reply(IReply, Command):
-        def __init__(self, query, projects, renamed):
-            super(RenameProject.Reply, self).__init__(query)
-            self.projects = projects
+        def __init__(self, query, binaries, renamed):
+            super(RenameBinary.Reply, self).__init__(query)
+            self.binaries = binaries
             self.renamed = renamed
 
         def build_command(self, dct):
             dct["renamed"] = self.renamed
-            dct["projects"] = [project.build({}) for project in self.projects]
+            dct["binaries"] = [binary.build({}) for binary in self.binaries]
 
         def parse_command(self, dct):
             self.renamed = dct["renamed"]
-            self.projects = [
-                Project.new(project) for project in dct["projects"]
+            self.binaries = [
+                Binary.new(binary) for binary in dct["binaries"]
             ]
 
 class JoinSession(DefaultCommand):
     __command__ = "join_session"
 
-    def __init__(self, group, project, database, tick, name, color, ea, silent=True):
+    def __init__(self, project, binary, snapshot, tick, name, color, ea, silent=True):
         super(JoinSession, self).__init__()
-        self.group = group
         self.project = project
-        self.database = database
+        self.binary = binary
+        self.snapshot = snapshot
         self.tick = tick
         self.name = name
         self.color = color

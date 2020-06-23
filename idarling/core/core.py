@@ -28,7 +28,7 @@ from ..module import Module
 from ..shared.commands import (
     JoinSession,
     LeaveSession,
-    ListDatabases,
+    ListSnapshots,
     UpdateLocation,
 )
 from ..shared.local_types import ImportLocalType
@@ -64,9 +64,9 @@ class Core(Module):
 
     def __init__(self, plugin):
         super(Core, self).__init__(plugin)
-        self._group = None
         self._project = None
-        self._database = None
+        self._binary = None
+        self._snapshot = None
         self._tick = -1
         self._users = {}
         self._session_joined = False
@@ -85,15 +85,6 @@ class Core(Module):
         self.delete_candidates = {}
 
     @property
-    def group(self):
-        return self._group
-
-    @group.setter
-    def group(self, group):
-        self._group = group
-        self.save_netnode()
-
-    @property
     def project(self):
         return self._project
 
@@ -103,12 +94,21 @@ class Core(Module):
         self.save_netnode()
 
     @property
-    def database(self):
-        return self._database
+    def binary(self):
+        return self._binary
 
-    @database.setter
-    def database(self, database):
-        self._database = database
+    @binary.setter
+    def binary(self, binary):
+        self._binary = binary
+        self.save_netnode()
+
+    @property
+    def snapshot(self):
+        return self._snapshot
+
+    @snapshot.setter
+    def snapshot(self, snapshot):
+        self._snapshot = snapshot
         self.save_netnode()
 
     @property
@@ -159,7 +159,8 @@ class Core(Module):
                 core.save_netnode()
 
                 core.project = None
-                core.database = None
+                core.binary = None
+                core.snapshot = None
                 core.ticks = 0
                 return 0
 
@@ -257,22 +258,37 @@ class Core(Module):
         self._ui_hooks.unhook()
         self._hooked = False
 
+    def load_netnode_old(self):
+        self._plugin.logger.warning("Old idb detected, please save your idb as a new snapshot")
+        node = ida_netnode.netnode(Core.NETNODE_NAME, 0, True)
+
+        self._project = node.hashstr("group") or None
+        self._binary = node.hashstr("project") or None
+        self._snapshot = node.hashstr("database") or None
+        self._tick = int(node.hashstr("tick") or "0")
+
+        # Replacing old netnode in local idb
+        node.kill()
+        self.save_netnode()
+
     def load_netnode(self):
         """
         Load data from our custom netnode. Netnodes are the mechanism used by
         IDA to load and save information into an idb. IDArling uses its own
-        netnode to remember which group, project and database an idb belongs to.
+        netnode to remember which project, binary and snapshot an idb belongs to.
         """
         node = ida_netnode.netnode(Core.NETNODE_NAME, 0, True)
-
-        self._group = node.hashstr("group") or None
-        self._project = node.hashstr("project") or None
-        self._database = node.hashstr("database") or None
-        self._tick = int(node.hashstr("tick") or "0")
+        if node.hashstr("database"):
+            self.load_netnode_old()
+        else:
+            self._project = node.hashstr("project") or None
+            self._binary = node.hashstr("binary") or None
+            self._snapshot = node.hashstr("snapshot") or None
+            self._tick = int(node.hashstr("tick") or "0")
 
         self._plugin.logger.debug(
-            "Loaded netnode: group=%s, project=%s, database=%s, tick=%d"
-            % (self._group, self._project, self._database, self._tick)
+            "Loaded netnode: project=%s, binary=%s, snapshot=%s, tick=%d"
+            % (self._project, self._binary, self._snapshot, self._tick)
         )
 
     def save_netnode(self):
@@ -282,35 +298,35 @@ class Core(Module):
         # node.hashset does not work anymore with direct string
         # use of hashet_buf instead
         # (see https://github.com/idapython/src/blob/master/swig/netnode.i#L162)
-        if self._group:
-            node.hashset_buf("group", str(self._group))
         if self._project:
             node.hashset_buf("project", str(self._project))
-        if self._database:
-            node.hashset_buf("database", str(self._database))
+        if self._binary:
+            node.hashset_buf("binary", str(self._binary))
+        if self._snapshot:
+            node.hashset_buf("snapshot", str(self._snapshot))
         # We need the test to be non-zero as we need to reset and save tick=0 
         # when saving an IDB to a new snapshot
         if self._tick != -1:
             node.hashset_buf("tick", str(self._tick))
 
         self._plugin.logger.debug(
-            "Saved netnode: group=%s, project=%s, database=%s, tick=%d"
-            % (self._group, self._project, self._database, self._tick)
+            "Saved netnode: project=%s, binary=%s, snapshot=%s, tick=%d"
+            % (self._project, self._binary, self._snapshot, self._tick)
         )
 
     def join_session(self):
         """Join the collaborative session."""
-        if self._group and self._project and self._database:
+        if self._project and self._binary and self._snapshot:
             if self._session_joined:
                 self._plugin.logger.debug("Joining a new session")
             else:
                 self._plugin.logger.debug("Joining session")
 
-            def databases_listed(reply):
-                if any(d.name == self._database for d in reply.databases):
-                    self._plugin.logger.debug("Database is on the server")
+            def snapshots_listed(reply):
+                if any(d.name == self._snapshot for d in reply.snapshots):
+                    self._plugin.logger.debug("Snapshot is on the server")
                 else:
-                    self._plugin.logger.debug("Database is not on the server")
+                    self._plugin.logger.debug("Snapshot is not on the server")
                     return  # Do not go further
 
                 name = self._plugin.config["user"]["name"]
@@ -318,9 +334,9 @@ class Core(Module):
                 ea = ida_kernwin.get_screen_ea()
                 self._plugin.network.send_packet(
                     JoinSession(
-                        self._group,
                         self._project,
-                        self._database,
+                        self._binary,
+                        self._snapshot,
                         self._tick,
                         name,
                         color,
@@ -332,10 +348,10 @@ class Core(Module):
                 self._users.clear()
 
             d = self._plugin.network.send_packet(
-                ListDatabases.Query(self._group, self._project)
+                ListSnapshots.Query(self._project, self._binary)
             )
             if d:
-                d.add_callback(databases_listed)
+                d.add_callback(snapshots_listed)
                 d.add_errback(self._plugin.logger.exception)
         else:
             self._plugin.logger.debug("Not joining any session yet")
@@ -348,7 +364,7 @@ class Core(Module):
             return
 
         self._plugin.logger.debug("Leaving session")
-        if self._group and self._project and self._database:
+        if self._project and self._binary and self._snapshot:
             name = self._plugin.config["user"]["name"]
             self._plugin.network.send_packet(LeaveSession(name))
             self._users.clear()

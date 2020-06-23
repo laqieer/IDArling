@@ -174,7 +174,7 @@ class OpenActionHandler(ActionHandler):
     _DIALOG = OpenDialog
 
     def _dialog_accepted(self, dialog):
-        group, project, database = dialog.get_result()
+        project, binary, snapshot = dialog.get_result()
 
         # Create the download progress dialog
         text = "Downloading database from server, please wait..."
@@ -188,7 +188,7 @@ class OpenActionHandler(ActionHandler):
         progress.setWindowIcon(QIcon(icon_path))
 
         # Send a packet to download the file
-        packet = DownloadFile.Query(group.name, project.name, database.name)
+        packet = DownloadFile.Query(project.name, binary.name, snapshot.name)
         callback = partial(self._on_progress, progress)
 
         def set_download_callback(reply):
@@ -196,11 +196,11 @@ class OpenActionHandler(ActionHandler):
 
         d = self._plugin.network.send_packet(packet)
         d.add_initback(set_download_callback)
-        d.add_callback(partial(self._file_downloaded, group, database, progress))
+        d.add_callback(partial(self._file_downloaded, project, snapshot, progress))
         d.add_errback(self._plugin.logger.exception)
         progress.show()
 
-    def _file_downloaded(self, group, database, progress, reply):
+    def _file_downloaded(self, project, snapshot, progress, reply):
         """Called when the file has been downloaded."""
         progress.close()
 
@@ -208,7 +208,7 @@ class OpenActionHandler(ActionHandler):
         app_path = QCoreApplication.applicationFilePath()
         app_name = QFileInfo(app_path).fileName()
         file_ext = "i64" if "64" in app_name else "idb"
-        file_name = "%s_%s_%s.%s" % (group.name, database.project, database.name, file_ext)
+        file_name = "%s_%s_%s.%s" % (project.name, snapshot.binary, snapshot.name, file_ext)
         file_path = os.path.join(self._plugin.config["files_dir"], file_name)
 
         # Write the file to disk
@@ -353,11 +353,11 @@ class SaveActionHandler(ActionHandler):
         return super(SaveActionHandler, self).update(ctx)
 
     def _dialog_accepted(self, dialog):
-        group, project, database = dialog.get_result()
-        self._plugin.core.group = group.name
+        project, binary, snapshot = dialog.get_result()
         self._plugin.core.project = project.name
-        self._plugin.core.database = database.name
+        self._plugin.core.binary = binary.name
+        self._plugin.core.snapshot = snapshot.name
 
         # Create the packet that will hold the file
-        packet = UpdateFile.Query(group.name, project.name, database.name)
+        packet = UpdateFile.Query(project.name, binary.name, snapshot.name)
         SaveActionHandler.upload_file(self._plugin, packet)

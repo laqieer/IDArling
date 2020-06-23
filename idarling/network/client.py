@@ -24,9 +24,9 @@ from ..shared.commands import (
     UpdateLocation,
     UpdateUserColor,
     UpdateUserName,
-    DeleteGroup,
     DeleteProject,
-    DeleteDatabase,
+    DeleteBinary,
+    DeleteSnapshot,
 )
 from ..shared.packets import Command, Event
 from ..shared.sockets import ClientSocket
@@ -52,9 +52,9 @@ class Client(ClientSocket):
             UpdateUserName: self._handle_update_user_name,
             UpdateUserColor: self._handle_update_user_color,
             DownloadFile.Query: self._handle_download_file,
-            DeleteGroup: self._handle_delete_group,
             DeleteProject: self._handle_delete_project,
-            DeleteDatabase: self._handle_delete_database,
+            DeleteBinary: self._handle_delete_binary,
+            DeleteSnapshot: self._handle_delete_snapshot,
         }
 
     def call_events(self):
@@ -181,19 +181,19 @@ class Client(ClientSocket):
             ida_kernwin.jumpto(packet.ea)
 
     def _handle_download_file(self, query):
-        # Upload the current database
+        # Upload the current snapshot
         self._plugin.interface.save_action.handler.upload_file(
             self._plugin, DownloadFile.Reply(query)
         )
 
-    def _handle_delete_group(self, packet):
-        # TODO: Handle situation then user database in deleted group
-        self.disconnect()
-
     def _handle_delete_project(self, packet):
-        # TODO: Handle situation then user database in deleted project
+        # TODO: Handle situation then user snapshot in deleted project
         self.disconnect()
 
-    def _handle_delete_database(self, packet):
-        # TODO: Handle situation then user database deleted
+    def _handle_delete_binary(self, packet):
+        # TODO: Handle situation then user snapshot in deleted binary
+        self.disconnect()
+
+    def _handle_delete_snapshot(self, packet):
+        # TODO: Handle situation then user snapshot deleted
         self.disconnect()

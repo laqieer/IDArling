@@ -41,30 +41,30 @@ class Model(Default):
         return u"{}({})".format(self.__class__.__name__, attrs)
 
 
-class Group(Model):
+class Project(Model):
     """
-    IDBs are organized into groups, projects and databases. A group contains all
+    IDBs are organized into projects, binaries and snapshots. A project contains all
     the files associated to a given topic, CVE, malware, etc. that we want to 
     group together to ease differentiating from another research topic.
     """
 
     def __init__(self, name, date):
-        super(Group, self).__init__()
+        super(Project, self).__init__()
         self.name = name
         self.date = date
 
 
-class Project(Model):
+class Binary(Model):
     """
-    IDBs are organized into groups, projects and databases. A project regroups
+    IDBs are organized into projects, binaries and snapshots. A binary regroups
     multiples revisions of an IDB. It has a name, the hash of the input file,
     the path to the input file, the type of the input file and the date of the
-    database creation.
+    snapshot creation.
     """
 
-    def __init__(self, group_name, name, hash, file, type, date):
-        super(Project, self).__init__()
-        self.group_name = group_name
+    def __init__(self, project_name, name, hash, file, type, date):
+        super(Binary, self).__init__()
+        self.project_name = project_name
         self.name = name
         self.hash = hash
         self.file = file
@@ -72,17 +72,17 @@ class Project(Model):
         self.date = date
 
 
-class Database(Model):
+class Snapshot(Model):
     """
-    IDBs are organized into groups, projects and databases. A database corresponds to
-    a revision of an IDB. It has a project, a name, a date of creation, and a
+    IDBs are organized into projects, binaries and snapshots. A snapshot corresponds to
+    a revision of an IDB. It has a binary, a name, a date of creation, and a
     current tick (events) count.
     """
 
-    def __init__(self, group_name, project, name, date, tick=0):
-        super(Database, self).__init__()
-        self.group_name = group_name
-        self.project = project
+    def __init__(self, project_name, binary, name, date, tick=0):
+        super(Snapshot, self).__init__()
+        self.project_name = project_name
+        self.binary = binary
         self.name = name
         self.date = date
         self.tick = tick

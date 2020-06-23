@@ -13,7 +13,7 @@
 import json
 import sqlite3
 
-from .models import Group, Project, Database
+from .models import Project, Binary, Snapshot
 from .packets import Default, DefaultEvent
 
 
@@ -79,20 +79,6 @@ class Storage(object):
             ],
         )
 
-    def insert_group(self, group):
-        """Insert a new group into the database."""
-        self._insert("groups", Default.attrs(group.__dict__))
-
-    def select_group(self, name):
-        """Select the group with the given name."""
-        objects = self.select_groups(name, 1)
-        return objects[0] if objects else None
-
-    def select_groups(self, name=None, limit=None):
-        """Select the groups with the given name."""
-        results = self._select("groups", {"name": name}, limit)
-        return [Group(**result) for result in results]
-
     def insert_project(self, project):
         """Insert a new project into the database."""
         self._insert("projects", Default.attrs(project.__dict__))
@@ -102,42 +88,56 @@ class Storage(object):
         objects = self.select_projects(name, 1)
         return objects[0] if objects else None
 
-    def select_projects(self, group=None, name=None, limit=None):
-        """Select the projects with the given group and name."""
-        results = self._select(
-            "projects", {"group_name": group, "name": name}, limit
-        )
+    def select_projects(self, name=None, limit=None):
+        """Select the projects with the given name."""
+        results = self._select("projects", {"name": name}, limit)
         return [Project(**result) for result in results]
 
-    def update_project_name(self, group=None, old_name=None, new_name=None, limit=None):
-        """Update a project with the given new name."""
-        self._update("projects", "name", new_name, {"group_name": group, "name": old_name}, limit)
+    def insert_binary(self, binary):
+        """Insert a new binary into the database."""
+        self._insert("binaries", Default.attrs(binary.__dict__))
 
-    def update_database_project(self, group=None, old_name=None, new_name=None, limit=None):
-        """Update a project with the given new name."""
-        self._update("databases", "project", new_name, {"group_name": group, "project": old_name}, limit)
-
-    def update_events_project(self, group=None, old_name=None, new_name=None, limit=None):
-        """Update a project with the given new name."""
-        self._update("events", "project", new_name, {"group_name": group, "project": old_name}, limit)
-
-    def insert_database(self, database):
-        """Insert a new database into the database."""
-        attrs = Default.attrs(database.__dict__)
-        attrs.pop("tick")
-        self._insert("databases", attrs)
-
-    def select_database(self, group, project, name):
-        """Select the database with the given project and name."""
-        objects = self.select_databases(group, project, name, 1)
+    def select_binary(self, name):
+        """Select the binary with the given name."""
+        objects = self.select_binaries(name, 1)
         return objects[0] if objects else None
 
-    def select_databases(self, group=None, project=None, name=None, limit=None):
-        """Select the databases with the given project and name."""
+    def select_binaries(self, project=None, name=None, limit=None):
+        """Select the binaries with the given project and name."""
         results = self._select(
-            "databases", {"group_name": group, "project": project, "name": name}, limit
+            "binaries", {"project_name": project, "name": name}, limit
         )
-        return [Database(**result) for result in results]
+        return [Binary(**result) for result in results]
+
+    def update_binary_name(self, project=None, old_name=None, new_name=None, limit=None):
+        """Update a binary with the given new name."""
+        self._update("binaries", "name", new_name, {"project_name": project, "name": old_name}, limit)
+
+    def update_snapshot_binary(self, project=None, old_name=None, new_name=None, limit=None):
+        """Update a binary with the given new name."""
+        self._update("snapshots", "binary", new_name, {"project_name": project, "binary": old_name}, limit)
+
+    def update_events_binary(self, project=None, old_name=None, new_name=None, limit=None):
+        """Update a binary with the given new name."""
+        self._update("events", "binary", new_name, {"project_name": project, "binary": old_name}, limit)
+
+    def insert_snapshot(self, snapshot):
+        """Insert a new snapshot into the database."""
+        attrs = Default.attrs(snapshot.__dict__)
+        attrs.pop("tick")
+        self._insert("snapshots", attrs)
+
+    def select_snapshot(self, project, binary, name):
+        """Select the snapshot with the given binary and name."""
+        objects = self.select_snapshots(project, binary, name, 1)
+        return objects[0] if objects else None
+
+    def select_snapshots(self, project=None, binary=None, name=None, limit=None):
+        """Select the snapshots with the given binary and name."""
+        results = self._select(
+            "snapshots", {"project_name": project, "binary": binary, "name": name}, limit
+        )
+        return [Snapshot(**result) for result in results]
 
     def insert_event(self, client, event):
         """Insert a new event into the database."""
@@ -145,20 +145,20 @@ class Storage(object):
         self._insert(
             "events",
             {
-                "group_name": client.group,
-                "project": client.project,
-                "database": client.database,
+                "project_name": client.project,
+                "binary": client.binary,
+                "snapshot": client.snapshot,
                 "tick": event.tick,
                 "dict": json.dumps(dct),
             },
         )
 
-    def select_events(self, group, project, database, tick):
+    def select_events(self, project, binary, snapshot, tick):
         """Get all events sent after the given tick count."""
         c = self._conn.cursor()
-        sql = "select * from events where group_name = ? and project = ? and database = ?"
+        sql = "select * from events where project_name = ? and binary = ? and snapshot = ?"
         sql += "and tick > ? order by tick asc;"
-        c.execute(sql, [group, project, database, tick])
+        c.execute(sql, [project, binary, snapshot, tick])
         events = []
         for result in c.fetchall():
             dct = json.loads(result["dict"])
@@ -166,32 +166,32 @@ class Storage(object):
             events.append(DefaultEvent.new(dct))
         return events
 
-    def last_tick(self, group, project, database):
-        """Get the last tick of the specified project and database."""
+    def last_tick(self, project, binary, snapshot):
+        """Get the last tick of the specified binary and snapshot."""
         c = self._conn.cursor()
-        sql = "select tick from events where group_name = ? and project = ? and database = ? "
+        sql = "select tick from events where project_name = ? and binary = ? and snapshot = ? "
         sql += "order by tick desc limit 1;"
-        c.execute(sql, [group, project, database])
+        c.execute(sql, [project, binary, snapshot])
         result = c.fetchone()
         return result["tick"] if result else 0
 
-    def delete_events(self, group, project, database):
-        self._delete("events", {"group_name": group, "project": project, "database": database})
+    def delete_events(self, project, binary, snapshot):
+        self._delete("events", {"project_name": project, "binary": binary, "snapshot": snapshot})
 
-    def delete_database(self, group, project, database):
-        self.delete_events(group, project, database)
-        self._delete("databases", {"group_name": group, "project": project, "name": database})
+    def delete_snapshot(self, project, binary, snapshot):
+        self.delete_events(project, binary, snapshot)
+        self._delete("snapshots", {"project_name": project, "binary": binary, "name": snapshot})
 
-    def delete_project(self, group, project):
-        self._delete("events", {"group_name": group, "project": project})
-        self._delete("databases", {"group_name": group, "project": project})
-        self._delete("projects", {"group_name": group, "name": project})
+    def delete_binary(self, project, binary):
+        self._delete("events", {"project_name": project, "binary": binary})
+        self._delete("snapshots", {"project_name": project, "binary": binary})
+        self._delete("binaries", {"project_name": project, "name": binary})
 
-    def delete_group(self, group):
-        self._delete("events", {"group_name": group})
-        self._delete("databases", {"group_name": group})
-        self._delete("projects", {"group_name": group})
-        self._delete("groups", {"name": group})
+    def delete_project(self, project):
+        self._delete("events", {"project_name": project})
+        self._delete("snapshots", {"project_name": project})
+        self._delete("binaries", {"project_name": project})
+        self._delete("projects", {"name": project})
 
     def _create(self, table, cols):
         """Create a table with the given name and columns."""

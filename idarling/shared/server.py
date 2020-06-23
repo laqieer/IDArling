@@ -21,24 +21,24 @@ import json
 from functools import partial
 
 from .commands import (
-    CreateGroup,
     CreateProject,
-    CreateDatabase,
+    CreateBinary,
+    CreateSnapshot,
     DownloadFile,
     InviteToLocation,
     JoinSession,
     LeaveSession,
-    ListGroups,
     ListProjects,
-    ListDatabases,
-    RenameProject,
+    ListBinaries,
+    ListSnapshots,
+    RenameBinary,
     UpdateFile,
     UpdateLocation,
     UpdateUserColor,
     UpdateUserName,
-    DeleteGroup,
     DeleteProject,
-    DeleteDatabase,
+    DeleteBinary,
+    DeleteSnapshot,
 )
 from .discovery import ClientsDiscovery
 from .packets import Command, Event
@@ -59,25 +59,25 @@ class ServerClient(ClientSocket):
         """
 
         ClientSocket.__init__(self, logger, parent)
-        self._group = None
         self._project = None
-        self._database = None
+        self._binary = None
+        self._snapshot = None
         self._name = None
         self._color = None
         self._ea = None
         self._handlers = {}
 
     @property
-    def group(self):
-        return self._group
-
-    @property
     def project(self):
         return self._project
 
     @property
-    def database(self):
-        return self._database
+    def binary(self):
+        return self._binary
+
+    @property
+    def snapshot(self):
+        return self._snapshot
 
     @property
     def name(self):
@@ -96,24 +96,24 @@ class ServerClient(ClientSocket):
 
         # Setup command handlers
         self._handlers = {
-            ListGroups.Query: self._handle_list_groups,
             ListProjects.Query: self._handle_list_projects,
-            ListDatabases.Query: self._handle_list_databases,
-            CreateGroup.Query: self._handle_create_group,
+            ListBinaries.Query: self._handle_list_binaries,
+            ListSnapshots.Query: self._handle_list_snapshots,
             CreateProject.Query: self._handle_create_project,
-            CreateDatabase.Query: self._handle_create_database,
+            CreateBinary.Query: self._handle_create_binary,
+            CreateSnapshot.Query: self._handle_create_snapshot,
             UpdateFile.Query: self._handle_upload_file,
             DownloadFile.Query: self._handle_download_file,
-            RenameProject.Query: self._handle_rename_project,
+            RenameBinary.Query: self._handle_rename_binary,
             JoinSession: self._handle_join_session,
             LeaveSession: self._handle_leave_session,
             UpdateLocation: self._handle_update_location,
             InviteToLocation: self._handle_invite_to_location,
             UpdateUserName: self._handle_update_user_name,
             UpdateUserColor: self._handle_update_user_color,
-            DeleteGroup.Query: self._handle_delete_group,
             DeleteProject.Query: self._handle_delete_project,
-            DeleteDatabase.Query: self._handle_delete_database,
+            DeleteBinary.Query: self._handle_delete_binary,
+            DeleteSnapshot.Query: self._handle_delete_snapshot,
         }
 
         # Add host and port as a prefix to our logger
@@ -128,7 +128,7 @@ class ServerClient(ClientSocket):
     def disconnect(self, err=None, notify=True):
         # Notify other users that we disconnected
         self.parent().reject(self)
-        if self._group and self._project and self._database and notify:
+        if self._project and self._binary and self._snapshot and notify:
             self.parent().forward_users(self, LeaveSession(self.name, False))
         ClientSocket.disconnect(self, err)
 
@@ -138,7 +138,7 @@ class ServerClient(ClientSocket):
             self._handlers[packet.__class__](packet)
 
         elif isinstance(packet, Event):
-            if not self._group or not self._project or not self._database:
+            if not self._project or not self._binary or not self._snapshot:
                 self._logger.warning(
                     "Received a packet from an unsubscribed client"
                 )
@@ -146,23 +146,23 @@ class ServerClient(ClientSocket):
 
             # Check for de-synchronization
             tick = self.parent().storage.last_tick(
-                self._group, self._project, self._database
+                self._project, self._binary, self._snapshot
             )
             if tick >= packet.tick:
                 self._logger.warning("De-synchronization detected!")
                 packet.tick = tick + 1
 
-            # Save the event into the database
+            # Save the event into the snapshot
             self.parent().storage.insert_event(self, packet)
             # Forward the event to the other users
             self.parent().forward_users(self, packet)
 
-            # Ask for a snapshot of the database if needed
+            # Ask for a snapshot of the snapshot if needed
             interval = self.parent().SNAPSHOT_INTERVAL
             if packet.tick and interval and packet.tick % interval == 0:
 
                 def file_downloaded(reply):
-                    file_name = "%s_%s_%s.idb" % (self._group, self._project, self._database)
+                    file_name = "%s_%s_%s.idb" % (self._project, self._binary, self._snapshot)
                     file_path = self.parent().server_file(file_name)
 
                     # Write the file to disk
@@ -171,7 +171,7 @@ class ServerClient(ClientSocket):
                     self._logger.info("Auto-saved file %s" % file_name)
 
                 d = self.send_packet(
-                    DownloadFile.Query(self._group, self._project, self._database)
+                    DownloadFile.Query(self._project, self._binary, self._snapshot)
                 )
                 d.add_callback(file_downloaded)
                 d.add_errback(self._logger.exception)
@@ -179,35 +179,35 @@ class ServerClient(ClientSocket):
             return False
         return True
 
-    def _handle_rename_project(self, query):
-        self._logger.info("Got rename project request")
-        projects = self.parent().storage.select_projects(query.group)
-        for project in projects:
-            if project.name == query.new_name:
-                self._logger.error("Attempt to rename project to existing name")
+    def _handle_rename_binary(self, query):
+        self._logger.info("Got rename binary request")
+        binaries = self.parent().storage.select_binaries(query.project)
+        for binary in binaries:
+            if binary.name == query.new_name:
+                self._logger.error("Attempt to rename binary to existing name")
                 return
 
-        # Grab the database lock. This basically means no other client can be
+        # Grab the snapshot lock. This basically means no other client can be
         # connected for a rename to occur.
         db_update_locked = False
-        for project in projects:
-            if project.name == query.old_name:
+        for binary in binaries:
+            if binary.name == query.old_name:
                 self.parent().client_lock.acquire()
                 # Only do the rename if we could lock the db. Otherwise we will
                 # mess with other clients.
                 db_update_locked = self.parent().db_update_lock.acquire(blocking=False)
                 self.parent().client_lock.release()
                 if db_update_locked:
-                    self.parent().storage.update_project_name(query.group, query.old_name, query.new_name)
-                    self.parent().storage.update_database_project(query.group, query.old_name, query.new_name)
-                    self.parent().storage.update_events_project(query.group, query.old_name, query.new_name)
+                    self.parent().storage.update_binary_name(query.project, query.old_name, query.new_name)
+                    self.parent().storage.update_snapshot_binary(query.project, query.old_name, query.new_name)
+                    self.parent().storage.update_events_binary(query.project, query.old_name, query.new_name)
 
                     # We just changed the table entries so be sure to use new names 
                     # for queries
-                    databases = self.parent().storage.select_databases(query.group, query.new_name)
-                    for database in databases:
-                        old_file_name = "%s_%s_%s.idb" % (query.group, query.old_name, database.name)
-                        new_file_name = "%s_%s_%s.idb" % (query.group, query.new_name, database.name)
+                    snapshots = self.parent().storage.select_snapshots(query.project, query.new_name)
+                    for snapshot in snapshots:
+                        old_file_name = "%s_%s_%s.idb" % (query.project, query.old_name, snapshot.name)
+                        new_file_name = "%s_%s_%s.idb" % (query.project, query.new_name, snapshot.name)
                         old_file_path = self.parent().server_file(old_file_name)
                         new_file_path = self.parent().server_file(new_file_name)
                         # If a rename happens before a file is uploaded, the 
@@ -220,52 +220,52 @@ class ServerClient(ClientSocket):
 
                     self.parent().db_update_lock.release()
                 else:
-                    self._logger.info("Skipping rename due to database lock")
+                    self._logger.info("Skipping rename due to snapshot lock")
 
-        # Resend an updated list of project names since it just changed
-        projects = self.parent().storage.select_projects(query.group)
-        self.send_packet(RenameProject.Reply(query, projects, db_update_locked))
-
-    def _handle_list_groups(self, query):
-        self._logger.info("Got list groups request")
-        groups = self.parent().storage.select_groups()
-        self.send_packet(ListGroups.Reply(query, groups))
+        # Resend an updated list of binary names since it just changed
+        binaries = self.parent().storage.select_binaries(query.project)
+        self.send_packet(RenameBinary.Reply(query, binaries, db_update_locked))
 
     def _handle_list_projects(self, query):
         self._logger.info("Got list projects request")
-        projects = self.parent().storage.select_projects(query.group)
+        projects = self.parent().storage.select_projects()
         self.send_packet(ListProjects.Reply(query, projects))
 
-    def _handle_list_databases(self, query):
-        self._logger.info("Got list databases request")
-        databases = self.parent().storage.select_databases(query.group, query.project)
-        for database in databases:
-            database_info = database.group_name, database.project, database.name
-            file_name = "%s_%s_%s.idb" % (database_info)
+    def _handle_list_binaries(self, query):
+        self._logger.info("Got list binaries request")
+        binaries = self.parent().storage.select_binaries(query.project)
+        self.send_packet(ListBinaries.Reply(query, binaries))
+
+    def _handle_list_snapshots(self, query):
+        self._logger.info("Got list snapshots request")
+        snapshots = self.parent().storage.select_snapshots(query.project, query.binary)
+        for snapshot in snapshots:
+            snapshot_info = snapshot.project_name, snapshot.binary, snapshot.name
+            file_name = "%s_%s_%s.idb" % (snapshot_info)
             file_path = self.parent().server_file(file_name)
             if os.path.isfile(file_path):
-                database.tick = self.parent().storage.last_tick(*database_info)
+                snapshot.tick = self.parent().storage.last_tick(*snapshot_info)
             else:
-                database.tick = -1
-        self.send_packet(ListDatabases.Reply(query, databases))
-
-    def _handle_create_group(self, query):
-        self.parent().storage.insert_group(query.group)
-        self.send_packet(CreateGroup.Reply(query))
+                snapshot.tick = -1
+        self.send_packet(ListSnapshots.Reply(query, snapshots))
 
     def _handle_create_project(self, query):
         self.parent().storage.insert_project(query.project)
         self.send_packet(CreateProject.Reply(query))
 
-    def _handle_create_database(self, query):
-        self.parent().storage.insert_database(query.database)
-        self.send_packet(CreateDatabase.Reply(query))
+    def _handle_create_binary(self, query):
+        self.parent().storage.insert_binary(query.binary)
+        self.send_packet(CreateBinary.Reply(query))
+
+    def _handle_create_snapshot(self, query):
+        self.parent().storage.insert_snapshot(query.snapshot)
+        self.send_packet(CreateSnapshot.Reply(query))
 
     def _handle_upload_file(self, query):
-        database = self.parent().storage.select_database(
-            query.group, query.project, query.database
+        snapshot = self.parent().storage.select_snapshot(
+            query.project, query.binary, query.snapshot
         )
-        file_name = "%s_%s_%s.idb" % (query.group, database.project, database.name)
+        file_name = "%s_%s_%s.idb" % (query.project, snapshot.binary, snapshot.name)
         file_path = self.parent().server_file(file_name)
 
         # Write the file received to disk
@@ -276,10 +276,10 @@ class ServerClient(ClientSocket):
         self.send_packet(UpdateFile.Reply(query))
 
     def _handle_download_file(self, query):
-        database = self.parent().storage.select_database(
-            query.group, query.project, query.database
+        snapshot = self.parent().storage.select_snapshot(
+            query.project, query.binary, query.snapshot
         )
-        file_name = "%s_%s_%s.idb" % (query.group, database.project, database.name)
+        file_name = "%s_%s_%s.idb" % (query.project, snapshot.binary, snapshot.name)
         file_path = self.parent().server_file(file_name)
 
         # Read file from disk and sent it
@@ -291,9 +291,9 @@ class ServerClient(ClientSocket):
         self.send_packet(reply)
 
     def _handle_join_session(self, packet):
-        self._group = packet.group
         self._project = packet.project
-        self._database = packet.database
+        self._binary = packet.binary
+        self._snapshot = packet.snapshot
         self._name = packet.name
         self._color = packet.color
         self._ea = packet.ea
@@ -306,9 +306,9 @@ class ServerClient(ClientSocket):
         for user in self.parent().get_users(self):
             self.send_packet(
                 JoinSession(
-                    packet.group,
                     packet.project,
-                    packet.database,
+                    packet.binary,
+                    packet.snapshot,
                     packet.tick,
                     user.name,
                     user.color,
@@ -318,7 +318,7 @@ class ServerClient(ClientSocket):
 
         # Send all missed events
         events = self.parent().storage.select_events(
-            self._group, self._project, self._database, packet.tick
+            self._project, self._binary, self._snapshot, packet.tick
         )
         self._logger.debug("Sending %d missed events..." % len(events))
         for event in events:
@@ -334,9 +334,9 @@ class ServerClient(ClientSocket):
         for user in self.parent().get_users(self):
             self.send_packet(LeaveSession(user.name))
 
-        self._group = None
         self._project = None
-        self._database = None
+        self._binary = None
+        self._snapshot = None
         self._name = None
         self._color = None
 
@@ -358,59 +358,59 @@ class ServerClient(ClientSocket):
     def _handle_update_user_color(self, packet):
         self.parent().forward_users(self, packet)
 
-    def _delete_group_files(self, group_name):
-        projects = self.parent().storage.select_projects(group_name)
-        for project in projects:
-            self._delete_project_files(group_name, project.name)
+    def _delete_project_files(self, project_name):
+        binaries = self.parent().storage.select_binaries(project_name)
+        for binary in binaries:
+            self._delete_binary_files(project_name, binary.name)
 
-    def _delete_project_files(self, group_name, project_name):
-        databases = self.parent().storage.select_databases(group_name, project_name)
-        for db in databases:
-            self._delete_database_files(group_name, project_name, db.name)
+    def _delete_binary_files(self, project_name, binary_name):
+        snapshots = self.parent().storage.select_snapshots(project_name, binary_name)
+        for db in snapshots:
+            self._delete_snapshot_files(project_name, binary_name, db.name)
 
-    def _delete_database_files(self, group_name, project_name, database_name):
-        file_name = "%s_%s_%s.idb" % (group_name, project_name, database_name)
+    def _delete_snapshot_files(self, project_name, binary_name, snapshot_name):
+        file_name = "%s_%s_%s.idb" % (project_name, binary_name, snapshot_name)
         file_path = self.parent().server_file(file_name)
         try:
             os.remove(file_path)
         except FileNotFoundError:
             pass
 
-    def _handle_delete_group(self, packet):
-        def match_group(user, group_name):
-            return user.group == group_name
+    def _handle_delete_project(self, packet):
+        def match_project(user, project_name):
+            return user.project == project_name
 
-        if  len(self.parent().get_users(self,partial(match_group, group_name=packet.group_name))):
-            self.send_packet(DeleteGroup.Reply(packet, False))
-        else:
-            self._delete_group_files(packet.group_name)
-            self.parent().storage.delete_group(packet.group_name)
-            # self.parent().forward_users(self,packet,partial(match_group,group_name=packet.group_name))
-            self.send_packet(DeleteGroup.Reply(packet, True))
-
-    def _handle_delete_project(self,packet):
-        def match_user(user, group_name, project_name):
-            return user.group == group_name and user.project == project_name
-
-        if  len(self.parent().get_users(self, partial(match_user, group_name=packet.group_name, project_name=packet.project_name))):
+        if  len(self.parent().get_users(self,partial(match_project, project_name=packet.project_name))):
             self.send_packet(DeleteProject.Reply(packet, False))
         else:
-            self._delete_project_files(packet.group_name, packet.project_name)
-            self.parent().storage.delete_project(packet.group_name, packet.project_name)
-            # self.parent().forward_users(self,packet,partial(match_user, group_name=packet.group_name,project_name=packet.project_name))
+            self._delete_project_files(packet.project_name)
+            self.parent().storage.delete_project(packet.project_name)
+            # self.parent().forward_users(self,packet,partial(match_project,project_name=packet.project_name))
             self.send_packet(DeleteProject.Reply(packet, True))
 
-    def _handle_delete_database(self, packet):
-        def match_user(user, group_name, project_name, database_name):
-            return user.group == group_name and user.project == project_name and user.database == database_name
+    def _handle_delete_binary(self,packet):
+        def match_user(user, project_name, binary_name):
+            return user.project == project_name and user.binary == binary_name
 
-        if len(self.parent().get_users(self,partial(match_user, group_name=packet.group_name, project_name=packet.project_name,database_name=packet.database_name))):
-            self.send_packet(DeleteDatabase.Reply(packet, False))
+        if  len(self.parent().get_users(self, partial(match_user, project_name=packet.project_name, binary_name=packet.binary_name))):
+            self.send_packet(DeleteBinary.Reply(packet, False))
         else:
-            self._delete_database_files(packet.group_name, packet.project_name, packet.database_name)
-            self.parent().storage.delete_database(packet.group_name, packet.project_name, packet.database_name)
+            self._delete_binary_files(packet.project_name, packet.binary_name)
+            self.parent().storage.delete_binary(packet.project_name, packet.binary_name)
+            # self.parent().forward_users(self,packet,partial(match_user, project_name=packet.project_name,binary_name=packet.binary_name))
+            self.send_packet(DeleteBinary.Reply(packet, True))
+
+    def _handle_delete_snapshot(self, packet):
+        def match_user(user, project_name, binary_name, snapshot_name):
+            return user.project == project_name and user.binary == binary_name and user.snapshot == snapshot_name
+
+        if len(self.parent().get_users(self,partial(match_user, project_name=packet.project_name, binary_name=packet.binary_name,snapshot_name=packet.snapshot_name))):
+            self.send_packet(DeleteSnapshot.Reply(packet, False))
+        else:
+            self._delete_snapshot_files(packet.project_name, packet.binary_name, packet.snapshot_name)
+            self.parent().storage.delete_snapshot(packet.project_name, packet.binary_name, packet.snapshot_name)
             # self.parent().forward_users(self, packet)
-            self.send_packet(DeleteDatabase.Reply(packet, True))
+            self.send_packet(DeleteSnapshot.Reply(packet, True))
 
 class Migrate(object):
 
@@ -651,12 +651,12 @@ class Server(ServerSocket):
         self.client_lock.release()
 
     def get_users(self, client, matches=None):
-        """Get the other users on the same database."""
+        """Get the other users on the same snapshot."""
         users = []
         for user in self._clients:
             if (matches is None and
-                (user.project != client.project
-                or user.database != client.database)
+                (user.binary != client.binary
+                or user.snapshot != client.snapshot)
             ):
                 continue
             if user == client or (matches and not matches(user)):
@@ -665,7 +665,7 @@ class Server(ServerSocket):
         return users
 
     def forward_users(self, client, packet, matches=None):
-        """Sends the packet to the other users on the same database."""
+        """Sends the packet to the other users on the same snapshot."""
         for user in self.get_users(client, matches):
             user.send_packet(packet)
 
