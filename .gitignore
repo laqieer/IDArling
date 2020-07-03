@@ -94,3 +94,6 @@ ENV/
 .ropeproject
 
 tags
+
+idarling/test/kernel32.dll.*
+idarling/test/ntoskrnl.exe.*
