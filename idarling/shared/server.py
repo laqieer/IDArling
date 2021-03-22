@@ -535,7 +535,7 @@ class Server(ServerSocket):
 
     def migrate(self):
         migrationId = self.config["migration"]
-        while True:
+        while migrationId:
             migrationId += 1
             method_name = "do%d" % migrationId
             try:
