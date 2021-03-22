@@ -65,7 +65,7 @@ There are two different use cases:
 Python3 is required.
 
 The IDArling server is run on a remote system from the command-line. Generally
-simply running `./idarling.py` is sufficient. A more advanced invocation is:
+simply running `./idarling_server.py --no-ssl` is sufficient. A more advanced invocation is:
 
 ```
 python3 idarling_server.py -h 192.168.1.1 -p 12345 --no-ssl -l DEBUG
