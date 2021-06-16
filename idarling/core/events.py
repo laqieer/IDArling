@@ -839,7 +839,7 @@ class SegmMoved(Event):
         self.changed_netmap = changed_netmap
 
     def __call__(self):
-        flags = ida_segment.MFS_NETMAP if self.changed_netmap else 0
+        flags = ida_segment.MSF_NETNODES if not self.changed_netmap else 0
         s = ida_segment.getseg(self.from_ea)
         ida_segment.move_segm(s, self.to_ea, flags)
 
