@@ -530,12 +530,12 @@ class Server(ServerSocket):
         """
         return {
             "level": logging.INFO,
-            "migration": 0,
+            "migration": -1,
         }
 
     def migrate(self):
         migrationId = self.config["migration"]
-        while migrationId:
+        while migrationId >= 0:
             migrationId += 1
             method_name = "do%d" % migrationId
             try:
