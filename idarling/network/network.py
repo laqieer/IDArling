@@ -113,8 +113,9 @@ class Network(Module):
         try:
             sock.connect((host, port))
         except OSError as e:
-            self._plugin._logger.exception(e)
-            self._client.disconnect()
+            if e.errno not in (errno.EINPROGRESS, errno.EWOULDBLOCK):
+                self._plugin._logger.exception(e)
+                self._client.disconnect()
 
     def disconnect(self):
         """Disconnect from the current server."""
