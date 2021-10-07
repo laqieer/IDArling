@@ -612,7 +612,8 @@ class StrucMemberEvent(Event):
             )
         if type_flag & ida_bytes.enum_flag():
             mt.ec.serial = extra['serial']
-            mt.ec.tid = extra['tid']
+            # Backwards compatibility: Past versions didn't store the tid
+            mt.ec.tid = extra.get('tid', 0)
         if ida_bytes.is_strlit(type_flag):
             mt.strtype = extra['strtype']
 
