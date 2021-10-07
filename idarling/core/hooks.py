@@ -334,9 +334,9 @@ class IDBHooks(Hooks, ida_idp.IDB_Hooks):
                         sname, fieldname, offset, flag, nbytes, extra
                     )
                 )
-            # Is it really possible to create an enum?
             elif flag & ida_bytes.enum_flag():
                 extra["serial"] = mt.ec.serial
+                extra["tid"] = mt.ec.tid
                 self._send_packet(
                     evt.StrucMemberCreatedEvent(
                         sname, fieldname, offset, flag, nbytes, extra
@@ -392,6 +392,7 @@ class IDBHooks(Hooks, ida_idp.IDB_Hooks):
                 )
             elif flag & ida_bytes.enum_flag():
                 extra["serial"] = mt.ec.serial
+                extra["tid"] = mt.ec.tid
                 self._send_packet(
                     evt.StrucMemberChangedEvent(
                         sname, soff, mptr.eoff, flag, extra

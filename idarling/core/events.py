@@ -610,6 +610,9 @@ class StrucMemberEvent(Event):
                 extra['target'],
                 extra['tdelta'],
             )
+        if type_flag & ida_bytes.enum_flag():
+            mt.ec.serial = extra['serial']
+            mt.ec.tid = extra['tid']
         if ida_bytes.is_strlit(type_flag):
             mt.strtype = extra['strtype']
 
