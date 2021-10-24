@@ -330,10 +330,6 @@ class ServerClient(ClientSocket):
         packet.silent = False
         self.parent().forward_users(self, packet)
 
-        # Inform ourselves that the other users leaved
-        for user in self.parent().get_users(self):
-            self.send_packet(LeaveSession(user.name))
-
         self._project = None
         self._binary = None
         self._snapshot = None
