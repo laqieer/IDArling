@@ -444,9 +444,9 @@ class IDBHooks(Hooks, ida_idp.IDB_Hooks):
         )
         return 0
 
-    # This hook lack of disable addresses option
-    def segm_deleted(self, start_ea, end_ea):
-        self._send_packet(evt.SegmDeletedEvent(start_ea))
+    # The flags argument was added in IDA 7.7
+    def segm_deleted(self, start_ea, end_ea, flags=0):
+        self._send_packet(evt.SegmDeletedEvent(start_ea, flags))
         return 0
 
     def segm_start_changed(self, s, oldstart):
