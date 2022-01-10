@@ -757,13 +757,17 @@ class SegmAddedEvent(Event):
 class SegmDeletedEvent(Event):
     __event__ = "segm_deleted_event"
 
-    def __init__(self, ea):
+    def __init__(self, ea, flags):
         super(SegmDeletedEvent, self).__init__()
         self.ea = ea
+        self.flags = flags
 
     def __call__(self):
+        if not hasattr(self, 'flags'):
+            # segm_deleted events created prior to IDA 7.7 lack flags
+            self.flags = 0
         ida_segment.del_segm(
-            self.ea, ida_segment.SEGMOD_KEEP | ida_segment.SEGMOD_SILENT
+            self.ea, self.flags | ida_segment.SEGMOD_SILENT
         )
 
 
